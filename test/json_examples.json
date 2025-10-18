@@ -1,0 +1,67 @@
+{
+  "location": "local",
+  "path": "filament_dryer/rollers/hex_roller_v1.gcode",
+  "progress": 63,
+  "printer_data": {
+    "state": {
+      "text": "Printing",
+      "error": ""
+    },
+    "job": {
+      "estimatedPrintTime": 9405.153401200672,
+      "averagePrintTime": 9576.348718455003,
+      "lastPrintTime": 9576.348718455003,
+      "user": "gbdineen"
+    },
+    "currentZ": 49.95,
+    "progress": {
+      "completion": 61.80070861393104,
+      "filepos": 4918842,
+      "printTime": 5862,
+      "printTimeLeft": 3510,
+      "printTimeLeftOrigin": "genius"
+    },
+    "offsets": {},
+    "resends": {
+      "count": 0,
+      "transmitted": 189840,
+      "ratio": 0
+    }
+  },
+  "_timestamp": 1759880795
+}
+
+
+
+{
+  "location": "local",
+  "path": "filament_dryer/rollers/hex_roller_v1.gcode",
+  "progress": 63,
+  "printer_data": {
+    "state": {
+      "text": "Printing",
+      "error": ""
+    },
+    "job": {
+      "estimatedPrintTime": 9405.153401200672,
+      "averagePrintTime": 9576.348718455003,
+      "lastPrintTime": 9576.348718455003,
+      "user": "gbdineen"
+    },
+    "currentZ": 49.95,
+    "progress": {
+      "completion": 61.80070861393104,
+      "filepos": 4918842,
+      "printTime": 5862,
+      "printTimeLeft": 3510,
+      "printTimeLeftOrigin": "genius"
+    },
+    "offsets": {},
+    "resends": {
+      "count": 0,
+      "transmitted": 189840,
+      "ratio": 0
+    }
+  },
+  "_timestamp": 1759880795
+}
