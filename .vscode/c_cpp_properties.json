@@ -10,9 +10,9 @@
             "includePath": [
                 "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/include",
                 "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/src",
-                "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eWidget/src",
                 "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/OpenFontRender/src",
                 "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
+                "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eWidget/src",
                 "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eSPI",
                 "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                 "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
@@ -261,9 +261,9 @@
                 "path": [
                     "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/include",
                     "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/src",
-                    "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eWidget/src",
                     "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/OpenFontRender/src",
                     "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
+                    "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eWidget/src",
                     "/Users/guydineen/Documents/PlatformIO/Projects/Filament Dry Box Peripherals/.pio/libdeps/esp32dev/TFT_eSPI",
                     "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                     "/Users/guydineen/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
