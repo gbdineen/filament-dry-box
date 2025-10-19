@@ -1,0 +1,31 @@
+.pio/build/esp32dev/lib3e6/OpenFontRender/base/ftsynth.c.o: \
+ .pio/libdeps/esp32dev/OpenFontRender/src/base/ftsynth.c \
+ .pio/libdeps/esp32dev/OpenFontRender/src/ft2build.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/config/ftheader.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/internal.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftsynth.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/freetype.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/config/ftconfig.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/config/ftoption.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/config/ftstdlib.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/fttypes.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftsystem.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftimage.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/fterrors.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftmoderr.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/fterrdef.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftdebug.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftobjs.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftrender.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftmodapi.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftglyph.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftsizes.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftlcdfil.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftmemory.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftgloadr.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftdriver.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/autohint.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftserv.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/internal/ftpic.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftoutln.h \
+ .pio/libdeps/esp32dev/OpenFontRender/src/freetype/ftbitmap.h

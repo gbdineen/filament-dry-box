@@ -10,18 +10,18 @@ V 1.2
 #include <string>
 #include <cstring>
 #include "SPI.h"
-#include "TFT_eSPI.h"
+#include <TFT_eSPI.h>
+#include "OpenFontRender.h"
 #include "EspMQTTClient.h"
 #include <ArduinoJson.h>
 #include "NotoSans_Bold.h"
-#include "OpenFontRender.h"
 
-#define TFT_DC 2
-#define TFT_CS 5
-#define TFT_CLK 18
-#define TFT_MISO 19
-#define TFT_MOSI 23
-#define TFT_RST 0
+// #define TFT_DC 2
+// #define TFT_CS 5
+// #define TFT_CLK 18
+// #define TFT_MISO 19
+// #define TFT_MOSI 23
+// #define TFT_RST 0
 #define LOOP_DELAY 0 // This controls how frequently the meter is updateD. For test purposes this is set to 0
 #define DARKER_GREY 0x18E3
 #define TTF_FONT NotoSans_Bold
@@ -80,16 +80,6 @@ void ringMeter(int x, int y, int r, int val, const char *units)
     initMeter = false;
   }
 
-  // Draw the meter value arc
-  uint8_t thickness = r / 5;
-  int16_t angleStart = 30; // Start angle of meter arc
-  int16_t angleEnd = 330;   // End angle of meter arc
-  int16_t angleRange = angleEnd - angleStart;
-  int16_t angleVal = angleStart + (angleRange * val) / 100;
-
-  // Draw the filled arc for the value
-  tft.drawArc(x, y, r, r - thickness, angleStart, angleVal, TFT_MAGENTA, DARKER_GREY);
-
   // TEXT STUFF
   ofr.setDrawer(spr); 
   ofr.setFontSize((6 * r) / 4);
@@ -129,7 +119,19 @@ void ringMeter(int x, int y, int r, int val, const char *units)
   ofr.setFontColor(TFT_GOLD, DARKER_GREY);
   ofr.setFontSize(r / 2.0);
   ofr.setCursor(x, y + (r * 0.4));
-  ofr.cprintf("Watts");
+  ofr.cprintf("%");
+
+  // Draw the meter value arc
+  uint8_t thickness = r / 5;
+  int16_t angleStart = 30; // Start angle of meter arc
+  int16_t angleEnd = 330;   // End angle of meter arc
+  int16_t angleRange = angleEnd - angleStart;
+  int16_t angleVal = angleStart + (angleRange * val) / 100;
+
+  // Draw the filled arc for the value
+  tft.drawArc(x, y, r, r - thickness, angleStart, angleVal, TFT_MAGENTA, DARKER_GREY);
+
+  
 };
 
 
@@ -314,6 +316,10 @@ void setup()
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
+  if (ofr.loadFont(TTF_FONT, sizeof(TTF_FONT))) {
+    Serial.println("Render initialize error");
+    return;
+  }
 
 
   // tft.begin();
