@@ -326,4 +326,4 @@
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.hpp \
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson/Configuration.hpp \
- include/NotoSans_Bold.h
+ include/NotoSans_Bold.h include/Free_Fonts.h

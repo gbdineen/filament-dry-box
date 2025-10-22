@@ -25,6 +25,7 @@ V 1.2
 #define LOOP_DELAY 0 // This controls how frequently the meter is updateD. For test purposes this is set to 0
 #define DARKER_GREY 0x18E3
 #define TTF_FONT NotoSans_Bold
+#include "Free_Fonts.h"
 
 
 int8_t progress;
@@ -35,6 +36,8 @@ uint32_t runTime = 0;       // time for next update
 bool range_error = 0; 
 bool initMeter = true;
 bool setMaxPacketSize(3000);
+int barWidth = 280;
+int barHeight = 40;
 
 // Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 EspMQTTClient client(
@@ -85,14 +88,6 @@ void ringMeter(int x, int y, int r, int val, const char *units)
   ofr.setFontSize((6 * r) / 4);
   ofr.setFontColor(TFT_WHITE, DARKER_GREY);
 
-
-  // The OpenFontRender library only has simple print functions...
-  // Digit jiggle for changing values often happens with proportional fonts because
-  // digit glyph width varies ( 1 narrower that 4 for example). This code prints up to
-  // 3 digits with even spacing.
-  // A few experimental fudge factors are used here to position the
-  // digits in the sprite...
-  // Create a sprite to draw the digits into
   uint8_t w = ofr.getTextWidth("444");
   uint8_t h = ofr.getTextHeight("4") + 4;
   spr.createSprite(w, h + 2);
@@ -120,7 +115,6 @@ void ringMeter(int x, int y, int r, int val, const char *units)
   ofr.setFontSize(r / 2.0);
   ofr.setCursor(x, y + (r * 0.4));
   ofr.cprintf("%");
-
   // Draw the meter value arc
   uint8_t thickness = r / 5;
   int16_t angleStart = 30; // Start angle of meter arc
@@ -132,8 +126,97 @@ void ringMeter(int x, int y, int r, int val, const char *units)
   tft.drawArc(x, y, r, r - thickness, angleStart, angleVal, TFT_MAGENTA, DARKER_GREY);
 
   
-};
+}
 
+void barMeter (int x, int y, int val) {
+
+    int fillVal = map(val, 0, 100, 0, 280);
+    
+    String valStr = "Print Progress " + String(val) + "%";
+
+    tft.setCursor(0, 0);
+    int r = 5;
+    int t = 21;
+
+    tft.drawRect(x, y, barWidth+2, barHeight+2, TFT_SILVER);
+    tft.fillRect(x+1, y+1, fillVal, barHeight, TFT_GREEN);
+    // tft.setTextSize(2);
+    spr.createSprite(barWidth, 60);
+    // spr.fillSprite(TFT_BLACK);
+    // spr.pushSprite(x , y, TFT_TRANSPARENT);
+    spr.fillSprite(TFT_BLACK);
+    spr.setTextDatum((MC_DATUM));
+    spr.setFreeFont(FM9);
+    spr.setTextColor(TFT_BLACK, TFT_BLACK);
+    spr.drawString("THE TEXT HAS BEEN FULLY CLEARED FOR ALL ETERNITY", (x + (barWidth /2)) - 30, y + (barHeight / 2));
+    spr.setTextColor(TFT_WHITE, TFT_BLACK);
+    spr.drawString(valStr, (x + (barWidth /2)) - 30, y + (barHeight / 2));
+    spr.pushSprite(x , y, TFT_BLACK);
+    spr.deleteSprite();
+    // spr.fillSprite(TFT_BLACK);
+    // spr.setSwapBytes(false);
+    // spr.setColorDepth(8);
+    // spr.createSprite(200, 60);
+    // spr.setTextSize(2);
+    // spr.setTextDatum(MC_DATUM);
+    // spr.setTextColor(TFT_WHITE, TFT_BLACK);
+    // spr.fillSprite(TFT_BLACK);
+    // spr.drawString("PROGRESS", 100, 10);
+    // // spr.println(valStr);
+    // spr.printf("%d %%", val);
+    // spr.fillSprite(TFT_TRANSPARENT);
+    
+    // spr.pushSprite(x , y);
+    // // spr.setSwapBytes(true);
+    // spr.deleteSprite();
+
+    // spr.createSprite(30, 30);
+    // // spr.fillSprite(TFT_TRANSPARENT);
+    // // spr.setTextColor(TFT_WHITE, TFT_BLACK);
+    // spr.fillSprite(TFT_GREEN);
+    // // spr.drawString("Drying...", 0, 0, 6);
+    // spr.printf("%d %%", val);
+    // spr.pushSprite(x + (barWidth/2), y + (barHeight/2)); 
+    // spr.
+    // spr.deleteSprite();
+
+
+
+    // // TEXT STUFF
+    // ofr.setDrawer(spr); 
+    // ofr.setFontSize((6 * r) / 
+    // ofr.setFontColor(TFT_WHITE, TFT_TRANSPARENT);
+
+    // uint8_t w = ofr.getTextWidth("444");
+    // uint8_t h = ofr.getTextHeight("4") + 4;
+    // spr.createSprite(barWidth, barHeight);
+    // // spr.fillSprite(DARKER_GREY); // (TFT_BLUE); // (DARKER_GREY);
+    // // spr.fillSprite(TFT_TRANSPARENT);
+    // char str_buf[8];         // Buffed for string
+    // itoa (val, str_buf, 10); // Convert value to string (null terminated)
+    // uint8_t ptr = 0;         // Pointer to a digit character
+    // uint8_t dx = 4;          // x offset for cursor position
+    // if (val < 100) dx = ofr.getTextWidth("4") / 2; // Adjust cursor x for 2 digits
+    // if (val < 10) dx = ofr.getTextWidth("4");      // Adjust cursor x for 1 digit
+    // while ((uint8_t)str_buf[ptr] != 0) ptr++;      // Count the characters
+    // while (ptr) {
+    //   ofr.setCursor(w - dx - w / 20, -h / 2.5);    // Offset cursor position in sprite
+    //   ofr.rprintf(str_buf + ptr - 1);              // Draw a character
+    //   str_buf[ptr - 1] = 0;                        // Replace character with a null
+    //   dx += 1 + w / 3;                             // Adjust cursor for next character
+    //   ptr--;                                       // Decrement character pointer
+    // }
+    // spr.pushSprite(x, y); // Push sprite containing the val number
+    // spr.deleteSprite();                   // Recover used memory
+
+    // // Make the TFT the print destination, print the units label direct to the TFT
+    // ofr.setDrawer(tft);
+    // ofr.setFontColor(TFT_GOLD, DARKER_GREY);
+    // ofr.setFontSize(r / 2.0);
+    // ofr.setCursor(x, y);
+    // ofr.printf("%d %%", val);
+
+  } 
 
 void onPrintProgressReceived(const String& payload) {
   JsonDocument doc;
@@ -153,73 +236,9 @@ void onPrintProgressReceived(const String& payload) {
   static int16_t xpos = tft.width() / 2;
   static int16_t ypos = tft.height() / 2;
 
-  ringMeter(xpos, ypos, 100, progress, "%");
+  int barX = (tft.width() - barWidth) / 2;
+  barMeter(barX, 10, progress);
 
-
-
-
-  // JsonObject printer_data = doc["printer_data"];
-
-  // const char* printer_data_state_text = printer_data["state"]["text"]; // "Printing"
-  // const char* printer_data_state_error = printer_data["state"]["error"]; // nullptr
-
-  // JsonObject printer_data_job = printer_data["job"];
-  // double printer_data_job_estimatedPrintTime = printer_data_job["estimatedPrintTime"];
-  // double printer_data_job_averagePrintTime = printer_data_job["averagePrintTime"]; // 9576.348718455003
-  // double printer_data_job_lastPrintTime = printer_data_job["lastPrintTime"]; // 9576.348718455003
-  // const char* printer_data_job_user = printer_data_job["user"]; // "gbdineen"
-
-  // JsonObject printer_data_progress = printer_data["progress"];
-  // double printer_data_progress_completion = printer_data_progress["completion"]; // 61.80070861393104
-  // long printer_data_progress_filepos = printer_data_progress["filepos"]; // 4918842
-  // double printer_data_progress_printTime = printer_data_progress["printTime"]; // 5862
-  // double printer_data_progress_printTimeLeft = printer_data_progress["printTimeLeft"]; // 3510
-  // const char* printer_data_progress_printTimeLeftOrigin = printer_data_progress["printTimeLeftOrigin"];
-
-  // // Tine left
-  // double decimal_hours = printer_data_progress_printTimeLeft / 3600;
-  // int hours = floor(decimal_hours);
-  // double total_minutes = decimal_hours * 60;
-  // int minutes = static_cast<int>(floor(total_minutes)) % 60;
-
-  // // Elapsed time
-  // double decimal_hours_elapsed = printer_data_progress_printTime / 3600;
-  // int hours_elapsed = floor(decimal_hours_elapsed);
-  // double total_minutes_elapsed = decimal_hours_elapsed * 60;
-  // int minutes_elapsed = static_cast<int>(floor(total_minutes_elapsed)) % 60;
-
-
-  // // Estimated print time
-  // double decimal_hours_estimated_print_time = printer_data_job_estimatedPrintTime / 3600;
-  // int hours_estimated_print_time = floor(decimal_hours_estimated_print_time);
-  // double total_minutes_estimated_print_time = decimal_hours_estimated_print_time * 60;
-  // int minutes_estimated_print_time = static_cast<int>(floor(total_minutes_estimated_print_time)) % 60;
-
-  // // % complete
-  // int completion = floor(printer_data_progress_completion);
-
-
-  // Serial.printf("Print Time Hours Left: %d:%d \n", hours, minutes);
-  // Serial.printf("Print Time Elapsed: %d:%d \n", hours_elapsed, minutes_elapsed);
-  // Serial.printf("Estimated Print Time: %d:%.2d \n", hours_estimated_print_time, minutes_estimated_print_time);
-
-  // Serial.printf("Completion: %d%%\n\n", completion);
-
-  
-  // int16_t line_height = 20;
-
-  // tft.fillScreen(ILI9341_BLACK);
-  // tft.setCursor(10, line_height);
-  // tft.setTextColor(ILI9341_WHITE); 
-  // tft.setTextSize(1);
-  // tft.printf("Estimated Print Time: %d:%.2d", hours_estimated_print_time, minutes_estimated_print_time);
-  // tft.setCursor(10, line_height*2);
-  // tft.printf("Print Time Elapsed: %d:%.2d", hours_elapsed, minutes_elapsed);
-  // tft.setCursor(10, line_height*3);
-  // tft.printf("Print Time Left: %d:%.2d", hours, minutes);
-  // tft.setCursor(10, line_height*4);
-  // tft.printf("Complete: %d%%\n\n", completion);
-  
 
 }
 
@@ -322,12 +341,6 @@ void setup()
   }
 
 
-  // tft.begin();
-  // tft.setTextColor(ILI9341_WHITE); 
-  // tft.setFont(&FreeSans9pt7b);
-  // tft.setRotation(1);  // HORZ TOP 1; 
-  // tft.fillScreen(ILI9341_BLACK);
-
   // Optional functionalities of EspMQTTClient
   // client.enableDebuggingMessages(); // Enable debugging messages sent to serial output
   // // client.enableHTTPWebUpdater(); // Enable the web updater. User and password default to values of MQTTUsername and MQTTPassword. These can be overridded with enableHTTPWebUpdater("user", "password").
@@ -335,10 +348,78 @@ void setup()
   // client.enableLastWillMessage("TestClient/lastwill", "I am going offline");  // You can activate the retain flag by setting the third parameter to true
 }
 
-
-
 void loop()
 {
   client.loop();
   
+}
+
+void dump() 
+{
+
+  /* PRINT STATS IN TEXT ON TFT */
+  // tft.setCursor(10, line_height);
+  // tft.setTextColor(ILI9341_WHITE); 
+  // tft.setTextSize(1);
+  // tft.printf("Estimated Print Time: %d:%.2d", hours_estimated_print_time, minutes_estimated_print_time);
+  // tft.setCursor(10, line_height*2);
+  // tft.printf("Print Time Elapsed: %d:%.2d", hours_elapsed, minutes_elapsed);
+  // tft.setCursor(10, line_height*3);
+  // tft.printf("Print Time Left: %d:%.2d", hours, minutes);
+  // tft.setCursor(10, line_height*4);
+  // tft.printf("Complete: %d%%\n\n", completion);
+
+
+  /* UNPACK AND REFORMAT ALL THE DATA FROM PRIUNT PROGRESS - DEPRICATED */
+  // JsonObject printer_data = doc["printer_data"];
+
+  // const char* printer_data_state_text = printer_data["state"]["text"]; // "Printing"
+  // const char* printer_data_state_error = printer_data["state"]["error"]; // nullptr
+
+  // JsonObject printer_data_job = printer_data["job"];
+  // double printer_data_job_estimatedPrintTime = printer_data_job["estimatedPrintTime"];
+  // double printer_data_job_averagePrintTime = printer_data_job["averagePrintTime"]; // 9576.348718455003
+  // double printer_data_job_lastPrintTime = printer_data_job["lastPrintTime"]; // 9576.348718455003
+  // const char* printer_data_job_user = printer_data_job["user"]; // "gbdineen"
+
+  // JsonObject printer_data_progress = printer_data["progress"];
+  // double printer_data_progress_completion = printer_data_progress["completion"]; // 61.80070861393104
+  // long printer_data_progress_filepos = printer_data_progress["filepos"]; // 4918842
+  // double printer_data_progress_printTime = printer_data_progress["printTime"]; // 5862
+  // double printer_data_progress_printTimeLeft = printer_data_progress["printTimeLeft"]; // 3510
+  // const char* printer_data_progress_printTimeLeftOrigin = printer_data_progress["printTimeLeftOrigin"];
+
+  // // Tine left
+  // double decimal_hours = printer_data_progress_printTimeLeft / 3600;
+  // int hours = floor(decimal_hours);
+  // double total_minutes = decimal_hours * 60;
+  // int minutes = static_cast<int>(floor(total_minutes)) % 60;
+
+  // // Elapsed time
+  // double decimal_hours_elapsed = printer_data_progress_printTime / 3600;
+  // int hours_elapsed = floor(decimal_hours_elapsed);
+  // double total_minutes_elapsed = decimal_hours_elapsed * 60;
+  // int minutes_elapsed = static_cast<int>(floor(total_minutes_elapsed)) % 60;
+
+
+  // // Estimated print time
+  // double decimal_hours_estimated_print_time = printer_data_job_estimatedPrintTime / 3600;
+  // int hours_estimated_print_time = floor(decimal_hours_estimated_print_time);
+  // double total_minutes_estimated_print_time = decimal_hours_estimated_print_time * 60;
+  // int minutes_estimated_print_time = static_cast<int>(floor(total_minutes_estimated_print_time)) % 60;
+
+  // // % complete
+  // int completion = floor(printer_data_progress_completion);
+
+
+  // Serial.printf("Print Time Hours Left: %d:%d \n", hours, minutes);
+  // Serial.printf("Print Time Elapsed: %d:%d \n", hours_elapsed, minutes_elapsed);
+  // Serial.printf("Estimated Print Time: %d:%.2d \n", hours_estimated_print_time, minutes_estimated_print_time);
+
+  // Serial.printf("Completion: %d%%\n\n", completion);
+
+  
+  // int16_t line_height = 20;
+
+  // tft.fillScreen(ILI9341_BLACK);
 }
