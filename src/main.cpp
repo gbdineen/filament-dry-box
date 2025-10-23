@@ -38,6 +38,8 @@ bool initMeter = true;
 bool setMaxPacketSize(3000);
 int barWidth = 280;
 int barHeight = 40;
+String oldVal;
+bool firstTime = true;
 
 // Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 EspMQTTClient client(
@@ -133,6 +135,8 @@ void barMeter (int x, int y, int val) {
     int fillVal = map(val, 0, 100, 0, 280);
     
     String valStr = "Print Progress " + String(val) + "%";
+  
+   
 
     tft.setCursor(0, 0);
     int r = 5;
@@ -141,18 +145,27 @@ void barMeter (int x, int y, int val) {
     tft.drawRect(x, y, barWidth+2, barHeight+2, TFT_SILVER);
     tft.fillRect(x+1, y+1, fillVal, barHeight, TFT_GREEN);
     // tft.setTextSize(2);
-    spr.createSprite(barWidth, 60);
-    // spr.fillSprite(TFT_BLACK);
-    // spr.pushSprite(x , y, TFT_TRANSPARENT);
-    spr.fillSprite(TFT_BLACK);
-    spr.setTextDatum((MC_DATUM));
-    spr.setFreeFont(FM9);
-    spr.setTextColor(TFT_BLACK, TFT_BLACK);
-    spr.drawString("THE TEXT HAS BEEN FULLY CLEARED FOR ALL ETERNITY", (x + (barWidth /2)) - 30, y + (barHeight / 2));
-    spr.setTextColor(TFT_WHITE, TFT_BLACK);
-    spr.drawString(valStr, (x + (barWidth /2)) - 30, y + (barHeight / 2));
-    spr.pushSprite(x , y, TFT_BLACK);
-    spr.deleteSprite();
+ 
+ 
+    // spr.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    // spr.setTextPadding(spr.textWidth(oldVal));
+    // Serial.println(spr.textWidth(oldVal));
+    
+    spr.drawString("                                   ", x + (barWidth /2) - 30, y + (barHeight / 2));
+    // spr.setTextColor(TFT_WHITE, TFT_TRANSPARENT);
+    spr.setTextPadding(spr.textWidth(oldVal));
+    spr.drawString(valStr, x + (barWidth /2) - 30, y + (barHeight / 2));
+
+    // spr.setTextPadding(spr.textWidth(valStr));
+    // spr.drawString(oldVal, x + (barWidth /2) - 30, y + (barHeight / 2));
+    // Serial.println(oldVal);
+    oldVal = valStr;
+    // if ( firstTime ) {
+    //   firstTime = false;
+      spr.pushSprite(x , y, TFT_BLACK);
+    // };
+
+    // spr.deleteSprite();
     // spr.fillSprite(TFT_BLACK);
     // spr.setSwapBytes(false);
     // spr.setColorDepth(8);
@@ -339,6 +352,14 @@ void setup()
     Serial.println("Render initialize error");
     return;
   }
+  spr.createSprite(barWidth, 60);
+  spr.setTextColor(TFT_WHITE, TFT_BLACK);
+  // spr.fillSprite(TFT_BLACK);
+  // spr.pushSprite(x , y, TFT_TRANSPARENT);
+  spr.fillSprite(TFT_BLACK);
+  // spr.fillRect(0, 0, spr.textWidth(oldVal), 50,  TFT_BLUE);
+  spr.setTextDatum((MC_DATUM));
+  spr.setFreeFont(FM9);
 
 
   // Optional functionalities of EspMQTTClient
