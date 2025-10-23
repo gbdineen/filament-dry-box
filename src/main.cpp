@@ -24,9 +24,12 @@ V 1.2
 // #define TFT_RST 0
 #define LOOP_DELAY 0 // This controls how frequently the meter is updateD. For test purposes this is set to 0
 #define DARKER_GREY 0x18E3
-#define TTF_FONT NotoSans_Bold
+#define TFT_FONT NotoSans_Bold
 #include "Free_Fonts.h"
 
+OpenFontRender ofr;
+TFT_eSPI tft = TFT_eSPI();            // Invoke custom library with default width and height
+TFT_eSprite spr = TFT_eSprite(&tft);  // Declare Sprite object "spr" with pointer to "tft" object
 
 int8_t progress;
 uint16_t rgbR;
@@ -38,7 +41,10 @@ bool initMeter = true;
 bool setMaxPacketSize(3000);
 int barWidth = 280;
 int barHeight = 40;
+int barX = (tft.width() - barWidth) / 2;
+
 String oldVal;
+String valStr;
 bool firstTime = true;
 
 // Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
@@ -52,9 +58,7 @@ EspMQTTClient client(
   1883              // The MQTT port, default to 1883. this line can be omitted
 );
 
-OpenFontRender ofr;
-TFT_eSPI tft = TFT_eSPI();            // Invoke custom library with default width and height
-TFT_eSprite spr = TFT_eSprite(&tft);  // Declare Sprite object "spr" with pointer to "tft" object
+
 
 void ringMeter(int x, int y, int r, int val, const char *units)
 {
@@ -134,66 +138,26 @@ void barMeter (int x, int y, int val) {
 
     int fillVal = map(val, 0, 100, 0, 280);
     
-    String valStr = "Print Progress " + String(val) + "%";
+    valStr = "Print Progress " + String(val) + "%";
   
-   
-
     tft.setCursor(0, 0);
     int r = 5;
     int t = 21;
 
     tft.drawRect(x, y, barWidth+2, barHeight+2, TFT_SILVER);
-    tft.fillRect(x+1, y+1, fillVal, barHeight, TFT_GREEN);
-    // tft.setTextSize(2);
- 
- 
-    // spr.setTextColor(TFT_WHITE, TFT_DARKGREY);
-    // spr.setTextPadding(spr.textWidth(oldVal));
-    // Serial.println(spr.textWidth(oldVal));
-    
-    spr.drawString("                                   ", x + (barWidth /2) - 30, y + (barHeight / 2));
-    // spr.setTextColor(TFT_WHITE, TFT_TRANSPARENT);
-    spr.setTextPadding(spr.textWidth(oldVal));
-    spr.drawString(valStr, x + (barWidth /2) - 30, y + (barHeight / 2));
+    spr.createSprite(barWidth, barHeight);
 
-    // spr.setTextPadding(spr.textWidth(valStr));
-    // spr.drawString(oldVal, x + (barWidth /2) - 30, y + (barHeight / 2));
-    // Serial.println(oldVal);
-    oldVal = valStr;
-    // if ( firstTime ) {
-    //   firstTime = false;
-      spr.pushSprite(x , y, TFT_BLACK);
-    // };
+    if (val==0) {
+      spr.fillRect(0, 0,  barWidth , barHeight, TFT_BLACK);
+    } else {
+      spr.fillRect(0,0, fillVal, barHeight, TFT_DARKGREEN);
+    }
 
-    // spr.deleteSprite();
-    // spr.fillSprite(TFT_BLACK);
-    // spr.setSwapBytes(false);
-    // spr.setColorDepth(8);
-    // spr.createSprite(200, 60);
-    // spr.setTextSize(2);
-    // spr.setTextDatum(MC_DATUM);
-    // spr.setTextColor(TFT_WHITE, TFT_BLACK);
-    // spr.fillSprite(TFT_BLACK);
-    // spr.drawString("PROGRESS", 100, 10);
-    // // spr.println(valStr);
-    // spr.printf("%d %%", val);
-    // spr.fillSprite(TFT_TRANSPARENT);
-    
-    // spr.pushSprite(x , y);
-    // // spr.setSwapBytes(true);
-    // spr.deleteSprite();
-
-    // spr.createSprite(30, 30);
-    // // spr.fillSprite(TFT_TRANSPARENT);
-    // // spr.setTextColor(TFT_WHITE, TFT_BLACK);
-    // spr.fillSprite(TFT_GREEN);
-    // // spr.drawString("Drying...", 0, 0, 6);
-    // spr.printf("%d %%", val);
-    // spr.pushSprite(x + (barWidth/2), y + (barHeight/2)); 
-    // spr.
-    // spr.deleteSprite();
-
-
+    spr.setTextDatum(MC_DATUM);
+    spr.setTextColor(TFT_WHITE);
+    spr.drawString("Print Progress " + String(val) + "%", barWidth /2, barHeight / 2, 2);       
+    spr.pushSprite(x+1 , y+1);
+    spr.deleteSprite();
 
     // // TEXT STUFF
     // ofr.setDrawer(spr); 
@@ -325,8 +289,6 @@ void onSpoolInfoReceived(const String& payload) {
   }  
 }
 
-
-
 void onConnectionEstablished()
 {
   client.setMaxPacketSize(3000);
@@ -334,7 +296,6 @@ void onConnectionEstablished()
   client.subscribe("octoPrint/event/DisplayLayerProgress_timerTrigger", onPrintProgressReceived);
 
   // client.publish("mytopic/test", "This is a message"); // You can activate the retain flag by setting the third parameter to true
-
   // Execute delayed instructions
   // client.executeDelayed(5 * 1000, []() {
   //   client.publish("mytopic/wildcardtest/test123", "This is a message sent 5 seconds later");
@@ -348,19 +309,10 @@ void setup()
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
-  if (ofr.loadFont(TTF_FONT, sizeof(TTF_FONT))) {
+  if (ofr.loadFont(TFT_FONT, sizeof(TFT_FONT))) {
     Serial.println("Render initialize error");
     return;
   }
-  spr.createSprite(barWidth, 60);
-  spr.setTextColor(TFT_WHITE, TFT_BLACK);
-  // spr.fillSprite(TFT_BLACK);
-  // spr.pushSprite(x , y, TFT_TRANSPARENT);
-  spr.fillSprite(TFT_BLACK);
-  // spr.fillRect(0, 0, spr.textWidth(oldVal), 50,  TFT_BLUE);
-  spr.setTextDatum((MC_DATUM));
-  spr.setFreeFont(FM9);
-
 
   // Optional functionalities of EspMQTTClient
   // client.enableDebuggingMessages(); // Enable debugging messages sent to serial output
@@ -372,6 +324,15 @@ void setup()
 void loop()
 {
   client.loop();
+
+  // for (int i=0;  i <= 99; i++) {
+  //   if (i != 100) {
+  //     barMeter(barX, 10, i);
+  //   } else {
+  //     barMeter(barX, 10, 0);
+  //   } 
+  //   delay(100);
+  // }
   
 }
 
