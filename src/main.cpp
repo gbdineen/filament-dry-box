@@ -15,6 +15,11 @@ V 1.2
 #include "EspMQTTClient.h"
 #include <ArduinoJson.h>
 #include "NotoSans_Bold.h"
+#include <FS.h>
+#include <LittleFS.h>
+#include "Free_Fonts.h"
+#include "NotoSansBold15.h"
+#include "NotoSansBold36.h"
 
 // #define TFT_DC 2
 // #define TFT_CS 5
@@ -25,7 +30,13 @@ V 1.2
 #define LOOP_DELAY 0 // This controls how frequently the meter is updateD. For test purposes this is set to 0
 #define DARKER_GREY 0x18E3
 #define TFT_FONT NotoSans_Bold
-#include "Free_Fonts.h"
+#define FlashFS LittleFS
+// The font names are arrays references, thus must NOT be in quotes ""
+#define AA_FONT_SMALL NotoSansBold15
+#define AA_FONT_LARGE NotoSansBold36
+// #define AA_FONT_MONO  NotoSansMonoSCB20 // NotoSansMono-SemiCondensedBold 20pt
+
+
 
 OpenFontRender ofr;
 TFT_eSPI tft = TFT_eSPI();            // Invoke custom library with default width and height
@@ -41,7 +52,7 @@ bool initMeter = true;
 bool setMaxPacketSize(3000);
 int barWidth = 280;
 int barHeight = 40;
-int barX = (tft.width() - barWidth) / 2;
+int8_t barX;
 
 String oldVal;
 String valStr;
@@ -141,12 +152,11 @@ void barMeter (int x, int y, int val) {
     valStr = "Print Progress " + String(val) + "%";
   
     tft.setCursor(0, 0);
-    int r = 5;
-    int t = 21;
-
     tft.drawRect(x, y, barWidth+2, barHeight+2, TFT_SILVER);
-    spr.createSprite(barWidth, barHeight);
 
+    spr.loadFont(AA_FONT_SMALL); // Must load the font first
+    spr.createSprite(barWidth, barHeight);
+    
     if (val==0) {
       spr.fillRect(0, 0,  barWidth , barHeight, TFT_BLACK);
     } else {
@@ -155,43 +165,12 @@ void barMeter (int x, int y, int val) {
 
     spr.setTextDatum(MC_DATUM);
     spr.setTextColor(TFT_WHITE);
-    spr.drawString("Print Progress " + String(val) + "%", barWidth /2, barHeight / 2, 2);       
+    // spr.setFreeFont(FF17);
+
+    spr.drawString("Print Progress " + String(val) + "%", barWidth /2, barHeight / 2);       
     spr.pushSprite(x+1 , y+1);
+    spr.unloadFont();
     spr.deleteSprite();
-
-    // // TEXT STUFF
-    // ofr.setDrawer(spr); 
-    // ofr.setFontSize((6 * r) / 
-    // ofr.setFontColor(TFT_WHITE, TFT_TRANSPARENT);
-
-    // uint8_t w = ofr.getTextWidth("444");
-    // uint8_t h = ofr.getTextHeight("4") + 4;
-    // spr.createSprite(barWidth, barHeight);
-    // // spr.fillSprite(DARKER_GREY); // (TFT_BLUE); // (DARKER_GREY);
-    // // spr.fillSprite(TFT_TRANSPARENT);
-    // char str_buf[8];         // Buffed for string
-    // itoa (val, str_buf, 10); // Convert value to string (null terminated)
-    // uint8_t ptr = 0;         // Pointer to a digit character
-    // uint8_t dx = 4;          // x offset for cursor position
-    // if (val < 100) dx = ofr.getTextWidth("4") / 2; // Adjust cursor x for 2 digits
-    // if (val < 10) dx = ofr.getTextWidth("4");      // Adjust cursor x for 1 digit
-    // while ((uint8_t)str_buf[ptr] != 0) ptr++;      // Count the characters
-    // while (ptr) {
-    //   ofr.setCursor(w - dx - w / 20, -h / 2.5);    // Offset cursor position in sprite
-    //   ofr.rprintf(str_buf + ptr - 1);              // Draw a character
-    //   str_buf[ptr - 1] = 0;                        // Replace character with a null
-    //   dx += 1 + w / 3;                             // Adjust cursor for next character
-    //   ptr--;                                       // Decrement character pointer
-    // }
-    // spr.pushSprite(x, y); // Push sprite containing the val number
-    // spr.deleteSprite();                   // Recover used memory
-
-    // // Make the TFT the print destination, print the units label direct to the TFT
-    // ofr.setDrawer(tft);
-    // ofr.setFontColor(TFT_GOLD, DARKER_GREY);
-    // ofr.setFontSize(r / 2.0);
-    // ofr.setCursor(x, y);
-    // ofr.printf("%d %%", val);
 
   } 
 
@@ -210,12 +189,7 @@ void onPrintProgressReceived(const String& payload) {
   progress = doc["progress"];
   Serial.println("Progress: " + String(progress));
 
-  static int16_t xpos = tft.width() / 2;
-  static int16_t ypos = tft.height() / 2;
-
-  int barX = (tft.width() - barWidth) / 2;
   barMeter(barX, 10, progress);
-
 
 }
 
@@ -309,10 +283,28 @@ void setup()
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
-  if (ofr.loadFont(TFT_FONT, sizeof(TFT_FONT))) {
-    Serial.println("Render initialize error");
-    return;
-  }
+  barX = (tft.width() - barWidth) / 2;
+  // if (ofr.loadFont(TFT_FONT, sizeof(TFT_FONT))) {
+  //   Serial.println("Render initialize error");
+  //   return;
+  // }
+
+  // if (!LittleFS.begin()) {
+  //   Serial.println("Flash FS initialisation failed!");
+  //   while (1) yield(); // Stay here twiddling thumbs waiting
+  // }
+  // Serial.println("Flash FS available!");
+
+  // bool font_missing = false;
+  // if (LittleFS.exists("/NotoSansBold15.vlw")    == false) font_missing = true;
+  // if (LittleFS.exists("/NotoSansBold36.vlw")    == false) font_missing = true;
+
+  // if (font_missing)
+  // {
+  //   Serial.println("\nFont missing in Flash FS, did you upload it?");
+  //   while(1) yield();
+  // }
+  // else Serial.println("\nFonts found OK.");
 
   // Optional functionalities of EspMQTTClient
   // client.enableDebuggingMessages(); // Enable debugging messages sent to serial output
@@ -324,15 +316,16 @@ void setup()
 void loop()
 {
   client.loop();
+  Serial.print("start");
 
-  // for (int i=0;  i <= 99; i++) {
-  //   if (i != 100) {
-  //     barMeter(barX, 10, i);
-  //   } else {
-  //     barMeter(barX, 10, 0);
-  //   } 
-  //   delay(100);
-  // }
+  for (int i=0;  i <= 99; i++) {
+    if (i != 100) {
+      barMeter(barX, 10, i);
+    } else {
+      barMeter(barX, 10, 0);
+    } 
+    delay(100);
+  }
   
 }
 
