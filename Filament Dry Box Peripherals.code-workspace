@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../SSD1306 Experiments"
+		},
+		{
+			"path": "../spoolman"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.ino": "cpp",
+			"string": "cpp"
+		}
+	}
+}

@@ -4,3 +4,16 @@
 .vscode/launch.json
 .vscode/ipch
 temp
+test
+r_and_d
+main_holding
+SSD1306 Experiments
+SSD1306 Experiments/
+spoolman
+.pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.git
+.pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.github
+.pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.vscode
+.pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.gitignore
+
+
+
