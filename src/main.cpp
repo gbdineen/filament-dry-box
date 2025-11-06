@@ -1,0 +1,311 @@
+#include <SPI.h>
+// #include <WiFiMulti.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <U8g2_for_Adafruit_GFX.h>
+#include <WebSocketsClient.h>
+#include <PubSubClient.h> // For MQTT
+#include <WiFi.h>
+// #include "EspMQTTClient.h"
+
+#define USE_SERIAL Serial
+#define WIFI_un "GL-SFT1200-887"
+#define WIFI_pw "goodlife"
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_ADDRESS_0 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+#define SCREEN_ADDRESS_1 0x3D 
+#define SCREEN_ADDRESS_2 0x3C
+#define SCREEN_ADDRESS_3 0x3D  
+#define I2C0_SDA 9 // &Wire Bus (default )
+#define I2C0_SCL 8
+#define I2C1_SDA 5  // &I2C_Bus1  
+#define I2C1_SCL 4
+#define WIRE Wire
+#define HOST_IP "192.168.8.228"
+
+String baseAPI_URL = "http://192.168.8.228:7912/api/v1/";
+
+// Example struct to hold parsed data
+struct SpoolEvent {
+  String type;
+  int id;
+  String name;
+  float weight;
+};
+
+TwoWire  I2C_Bus0 = TwoWire(0);
+TwoWire  I2C_Bus1 = TwoWire(1);
+
+const char* ssid = "GL-SFT1200-887";
+const char* password = "goodlife";
+int slotCount = 0;
+// bool setMaxPacketSize(3000);
+
+// MQTT broker details
+const char* mqtt_broker = "192.168.8.228";
+const int mqtt_port = 1883; // Or 8883 for SSL/TLS
+const char* mqtt_client_id = "DryboxPeripherals";
+const char* mqttUN = "gbdineen";
+const char* mqttPW = "N1mbl3Sh@rk";
+
+// void mqttCallback(char* topic, byte* payload, unsigned int length);
+
+WiFiClient wifiClient; 
+HTTPClient http;
+WebSocketsClient webSocket;
+PubSubClient mqttClient(wifiClient);
+// WiFiMulti wifiMulti;
+
+Adafruit_SSD1306 display0(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
+Adafruit_SSD1306 display1(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
+Adafruit_SSD1306 display2(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus1, OLED_RESET);
+Adafruit_SSD1306 display3(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus1, OLED_RESET);
+Adafruit_SSD1306 dual_display = display0;
+U8G2_FOR_ADAFRUIT_GFX u8g2_for_adafruit_gfx;
+
+Adafruit_SSD1306 displayArray[] = { display0, display1, display2, display3};
+
+int addressArray[] = {SCREEN_ADDRESS_0, SCREEN_ADDRESS_1, SCREEN_ADDRESS_2, SCREEN_ADDRESS_3};
+
+void handleSpoolEvent(const SpoolEvent& event) {
+  Serial.println("🔔 Received Spool Event:");
+  Serial.printf("  Type:   %s\n", event.type.c_str());
+  Serial.printf("  ID:     %d\n", event.id);
+  Serial.printf("  Name:   %s\n", event.name.c_str());
+  Serial.printf("  Weight: %.2f g\n", event.weight);
+}
+
+void oledDisplay(Adafruit_SSD1306 display, String payload, int address) {
+
+   if(!display.begin(SSD1306_SWITCHCAPVCC, address)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+  display.clearDisplay();
+  u8g2_for_adafruit_gfx.begin(display);
+  u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  u8g2_for_adafruit_gfx.setFontMode(1);                 // use u8g2 transparent mode (this is default)
+  u8g2_for_adafruit_gfx.setFontDirection(0);
+  u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
+  int16_t disp_center_x = display.width()/2;
+  int16_t disp_center_y = display.height()/2;
+
+  int16_t text_width = u8g2_for_adafruit_gfx.getUTF8Width(payload.c_str());
+
+  int16_t x1, y1;
+  uint16_t w, h;
+
+  display.getTextBounds(payload, 0, 0, &x1, &y1, &w, &h);
+  // Serial.printf("Text W: %d ", w);  Serial.printf("Text H: %d\n", h); Serial.printf("Text Y: %d\n", y1);
+  
+  int16_t text_center_x = (display.width() - text_width) /2;
+  int16_t text_center_y = disp_center_y + h;
+  
+  // display.invertDisplay(true);
+  
+  u8g2_for_adafruit_gfx.setCursor(0, 15);     // Start at top-left corner
+  
+  u8g2_for_adafruit_gfx.print(payload);
+  display.display();
+  delay(10);
+}
+
+void getSpools() {
+
+  http.useHTTP10(true);
+  http.begin(wifiClient, String(baseAPI_URL + "spool"));
+  http.GET();
+
+  JsonDocument doc;
+
+  deserializeJson(doc, http.getStream());
+
+  JsonArray root = doc.as<JsonArray>();
+
+  for (int i=0; i<root.size(); i++){
+
+    JsonObject spoolObj = root[i];
+    JsonObject extraObj = spoolObj["extra"];
+    JsonObject filamentObj = spoolObj["filament"];
+    int remWeight = spoolObj["remaining_weight"];
+    String status = extraObj["active"];
+    String slot = extraObj["slot"];
+    String material = filamentObj["material"];
+    const char* name = filamentObj["name"];
+    
+    if (status == "true") {
+
+      Serial.printf("Name: %s\n", name);
+      Serial.printf("Material: %s\n", material);
+      Serial.printf("Slot: %s\n", slot); 
+      Serial.printf("Status: %s\n\n", status); 
+
+      String info = "Name: " + String(name) + "\n" + "Material: " + material + "\n" + "Rem Wt." + remWeight;
+      dual_display = displayArray[slotCount];
+      int address = addressArray[slotCount];
+      oledDisplay(dual_display, info, address);
+      if (slotCount<4){
+        slotCount++;
+      } else {
+        slotCount=0;
+      }
+    }
+
+  }
+  http.end();
+}
+
+
+void selectSpool(const char * spoolID){
+
+  Serial.println("Spool selected");
+
+};
+
+void getSpool(const char * spoolID){
+
+};
+
+void updateSpool(const char * spoolID) {
+
+};
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+
+  Serial.print("MQTT Callback");
+  byte* p = (byte*)malloc(length);
+  // Copy the payload to the new buffer
+  memcpy(p,payload,length);
+  mqttClient.publish("mqttStatus", p, length);
+  // Free the memory
+  // free(p);
+  // ...
+  display0.begin();
+  display0.invertDisplay(true);
+}
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+
+	switch(type) {
+		case WStype_DISCONNECTED:
+			USE_SERIAL.printf("[WSc] Disconnected!\n");
+			break;
+		case WStype_CONNECTED:
+			USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
+
+			// send message to server when Connected
+			webSocket.sendTXT("Connected");
+			break;
+		case WStype_TEXT: {
+			
+			JsonDocument doc;
+  		deserializeJson(doc, payload);
+
+			serializeJsonPretty(doc,Serial);
+
+
+			// Expect format: {"type":"spool.updated","data":{"id":5,"name":"PLA White","weight":812}}
+			SpoolEvent evt;
+			evt.type = doc["type"].as<String>();
+			evt.id = doc["data"]["id"] | -1;
+			evt.name = doc["data"]["name"].as<String>();
+			evt.weight = doc["data"]["weight"] | -1.0;
+
+			handleSpoolEvent(evt);
+			break;
+		}
+		case WStype_BIN:
+			USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
+			// hexdump(payload, length); // probably wont be needing this 
+
+			// send data to server
+			// webSocket.sendBIN(payload, length);
+			break;
+		case WStype_ERROR:			
+		case WStype_FRAGMENT_TEXT_START:
+		case WStype_FRAGMENT_BIN_START:
+		case WStype_FRAGMENT:
+		case WStype_FRAGMENT_FIN:
+			break;
+	}
+
+}
+
+
+void setup() {
+  Serial.begin(115200);
+
+  I2C_Bus0.begin(I2C0_SDA, I2C0_SCL, 100000);
+  I2C_Bus1.begin(I2C1_SDA, I2C1_SCL, 100000); 
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // mqttClient.connect(mqtt_client_id, mqttUN, mqttPW);
+
+  mqttClient.setServer(mqtt_broker, mqtt_port);
+  mqttClient.setCallback(mqttCallback);
+  // mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+  // mqttClient.publish("mqttStatus","healthy");
+
+
+  // // Attempt to reconnect to MQTT
+  // if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+  //   Serial.println("MQTT Connected");
+  //   // mqttClient.setCallback(mqttCallback);
+  //   mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+  //   mqttClient.publish("mqttStatus","healthy");
+  // } else {
+  //   Serial.print("MQTT connection failed, rc=");
+  //   Serial.print(mqttClient.state());
+  //   Serial.println(" retrying in 5 seconds");
+  //   delay(5000);
+  // }
+
+
+  // server address, port and URL
+	webSocket.begin(HOST_IP, 7912, "/api/v1/");
+	// event handler
+	webSocket.onEvent(webSocketEvent);
+	webSocket.setReconnectInterval(5000);
+
+  getSpools();
+  
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // mqttClient to connect
+    if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      mqttClient.publish("mqttStatus","MQTT Connectee");
+      // ... and resubscribe
+      mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+void loop() {
+  webSocket.loop();
+   if (!mqttClient.connected()) {
+    reconnect();
+  }
+  mqttClient.loop();
+}
