@@ -15,3 +15,4 @@ spoolman
 .pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.vscode
 .pio/libdeps/esp32-s3-devkitc-1/ArduinoJson/.gitignore
 .DS_Store
+json_examples/
