@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <HTTPClient.h>
+// #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -23,9 +24,13 @@
 #define I2C1_SDA 5  // &I2C_Bus1  
 #define I2C1_SCL 4
 #define WIRE Wire
-#define HOST_IP "192.168.8.228"
+// #define HOST_IP "192.168.8.228"
+// #define WS_PORT 7912
+// #define MQTT_PORT 1883
 
+const char * hostIP = "192.168.8.228";
 String baseAPI_URL = "http://192.168.8.228:7912/api/v1/";
+int wsPort = 7912;
 
 // Example struct to hold parsed data
 struct SpoolEvent {
@@ -40,11 +45,10 @@ TwoWire  I2C_Bus1 = TwoWire(1);
 
 const char* ssid = "GL-SFT1200-887";
 const char* password = "goodlife";
-int slotCount = 0;
 // bool setMaxPacketSize(3000);
 
 // MQTT broker details
-const char* mqtt_broker = HOST_IP;
+const char* mqtt_broker = hostIP;
 const int mqtt_port = 1883; // Or 8883 for SSL/TLS
 const char* mqtt_client_id = "DryboxPeripherals";
 const char* mqttUN = "gbdineen";
@@ -52,11 +56,16 @@ const char* mqttPW = "N1mbl3Sh@rk";
 
 
 WiFiClient wifiClient; 
+// HttpClient http = HttpClient(wifiClient, hostIP, wsPort);
 HTTPClient http;
 WebSocketsClient webSocket;
 PubSubClient mqttClient(wifiClient);
 
-// Init 4 oled screens, one for each slot in the b ox
+
+// DISPLAY STUFF
+int slots = 4;  // Number of spool slots, also happens to be the number of displays
+
+// Init 4 oled screen objects, one for each slot in the box
 Adafruit_SSD1306 display0(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
 Adafruit_SSD1306 display1(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
 Adafruit_SSD1306 display2(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus1, OLED_RESET);
@@ -70,9 +79,6 @@ Adafruit_SSD1306 displayArray[] = {display0, display1, display2, display3};
 // Four addresses for pointing to each oled individually over I2C
 int addressArray[] = {SCREEN_ADDRESS_0, SCREEN_ADDRESS_1, SCREEN_ADDRESS_2, SCREEN_ADDRESS_3};
 
-JsonDocument spoolsJson;
-JsonArray spoolsJsonRoot;
-
 void handleSpoolEvent(const SpoolEvent& event) { // Struct example from CGPT
   Serial.println("🔔 Received Spool Event:");
   Serial.printf("  Type:   %s\n", event.type.c_str());
@@ -81,12 +87,33 @@ void handleSpoolEvent(const SpoolEvent& event) { // Struct example from CGPT
   Serial.printf("  Weight: %.2f g\n", event.weight);
 }
 
-void initDisplays(Adafruit_SSD1306 display, String payload, int address) {
+void initDisplays() {
 
-   if(!display.begin(SSD1306_SWITCHCAPVCC, address)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
+  for (int i=0; i<slots; i++){  
+    if(!displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i])) {
+      Serial.println(F("SSD1306 allocation failed"));
+      for(;;); // Don't proceed, loop forever
+    } else {
+      // Adafruit_SSD1306 buff = displayArray[i];
+      Serial.println("Display " + String(i) + "initialized");
+
+      displayArray[i].clearDisplay();
+      // The INVERSE color is used so circles alternate white/black
+      displayArray[i].fillCircle(displayArray[i].width() / 2, displayArray[i].height() / 2, 10, SSD1306_WHITE);
+      displayArray[i].display(); // Update screen with each newly-drawn circle
+      delay(1000);
+
+      // delay(2000);
+    }
   }
+}
+
+void initDisplays_OLD(Adafruit_SSD1306 &display, String &payload, int &address) {
+
+  //  if(!display.begin(SSD1306_SWITCHCAPVCC, address)) {
+  //   Serial.println(F("SSD1306 allocation failed"));
+  //   for(;;); // Don't proceed, loop forever
+  // }
   display.clearDisplay();
   u8g2_for_adafruit_gfx.begin(display);
   u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -115,17 +142,30 @@ void initDisplays(Adafruit_SSD1306 display, String payload, int address) {
 // Get all current spools from spoolman
 void getSpools() {
 
+  Serial.println("getSpools");
+
   http.useHTTP10(true);
   http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
+  
   http.GET();
+  // http.sendRequest("GET", "/spool?location=Drybox");
+  // // http.beginRequest();
+  // http.get("/spool?location=Drybox");
+  // // http.endRequest();
 
+  // int response = http.responseStatusCode();
+
+  // Serial.println(response);
+
+  JsonDocument spoolsJson;
 
   deserializeJson(spoolsJson, http.getStream());
 
-  // Initial call so /spool returns wrapped in a JSON array so we need to go down a level to get to the data
-  spoolsJsonRoot = spoolsJson.as<JsonArray>();
+  // // Initial call so /spool returns wrapped in a JSON array so we need to go down a level to get to the data
+  JsonArray spoolsJsonRoot = spoolsJson.as<JsonArray>();
+  Serial.println(spoolsJsonRoot.size());
 
-  for (int i=0; i<spoolsJsonRoot.size(); i++){
+  for (int i=0; i<4; i++){
 
     JsonObject spoolObj = spoolsJsonRoot[i];
     JsonObject extraObj = spoolObj["extra"];
@@ -139,16 +179,19 @@ void getSpools() {
     
     // if (status == "true") { // Grab just the spools that have an active status of 'true' in spoolman
 
-      String info = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
+
+      // String payloadPtr*;
+      String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
       // String info = "Display: " + String(slotCount) + "\n" + String(name) + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
-      currDisplay = displayArray[slotCount];
-      int address = addressArray[slotCount];
-      initDisplays(currDisplay, info, address);
-      if (slotCount<4){
-        slotCount++;
-      } else {
-        slotCount=0;
-      }
+      currDisplay = displayArray[i];
+      int address = addressArray[i];
+      initDisplays_OLD(currDisplay, payload, address);
+      // if (slotCount<4){
+      //   slotCount++;
+      // } else {
+      //   slotCount=0;
+      // }
+      // Serial.println(i);
     // }
 
   }
@@ -170,7 +213,9 @@ void updateSpool(JsonObject obj) {
 
   for (int i=0; i<4; i++){
 
-    JsonObject spoolObj = spoolsJsonRoot[i];
+    JsonDocument spoolsJson;
+    deserializeJson(spoolsJson, http.getStream());
+    JsonObject spoolObj = spoolsJson[i];
   
     if (spoolObj["id"] == obj["id"]) {
 
@@ -222,7 +267,7 @@ void updateSpool(JsonObject obj) {
       currDisplay.clearDisplay();
       currDisplay.invertDisplay(false);
 
-      initDisplays(currDisplay, info, address);
+      initDisplays_OLD(currDisplay, info, address);
 
     }
   
@@ -235,30 +280,30 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // Serial.println("MQTT Callback");
 
-  JsonDocument doc;
-  deserializeJson(doc, payload);
+  // JsonDocument doc;
+  // deserializeJson(doc, payload);
 
-  if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
+  // if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
     
-    String selectedSpoolId = doc["spoolId"];
+  //   String selectedSpoolId = doc["spoolId"];
     
-    for (int i=0; i<4; i++){
-      Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJsonRoot[i]["id"]) + "\n");
+  //   for (int i=0; i<4; i++){
+  //     Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJsonRoot[i]["id"]) + "\n");
 
-      if (selectedSpoolId == String(spoolsJsonRoot[i]["id"])) {
+  //     if (selectedSpoolId == String(spoolsJsonRoot[i]["id"])) {
 
-        displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
-        displayArray[i].invertDisplay(true);
+  //       displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
+  //       displayArray[i].invertDisplay(true);
 
-      } else {
+  //     } else {
 
-        displayArray[i].invertDisplay(false);
+  //       displayArray[i].invertDisplay(false);
       
-      }
+  //     }
 
-    }
+  //   }
 
-  }
+  // }
 
   // JsonObject root = doc.as<JsonObject>();
    
@@ -295,6 +340,8 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 			// evt.id = doc["data"]["id"] | -1;
 			// evt.name = doc["data"]["name"].as<String>();
 			// evt.weight = doc["data"]["weight"] | -1.0;
+
+      Serial.println("Resource: " + String(doc["resource"]));
 
       if (doc["type"] == "updated") {
 
@@ -347,11 +394,38 @@ void setup() {
   Serial.println("Connected to WiFi");
 
   mqttClient.setServer(mqtt_broker, mqtt_port);
-  mqttClient.setCallback(mqttCallback);
 
-	webSocket.begin(HOST_IP, 7912, "/api/v1/");
+  while (!mqttClient.connected()) {
+    delay(1000);
+    Serial.print("Attempting MQTT connection...");
+    // mqttClient to connect
+    if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+      Serial.println("connected");
+
+      // Set the callback function for incoming mqtt messages
+      mqttClient.setCallback(mqttCallback);
+
+      // Once connected, publish an announcement...
+      mqttClient.publish("mqttStatus","MQTT Connectee");
+      // ... and resubscribe
+      mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+
+  // Start up web socket... should be quick once wifi is started
+	webSocket.begin(hostIP, wsPort, "/api/v1/");
 	webSocket.onEvent(webSocketEvent);
 	webSocket.setReconnectInterval(5000);
+  
+  // Initialize and begin displays
+  initDisplays();
+  // delay(500); // Pause for a moment
 
   getSpools();
   
@@ -380,8 +454,8 @@ void reconnect() {
 
 void loop() {
   webSocket.loop();
-   if (!mqttClient.connected()) {
-    reconnect();
-  }
+  //  if (!mqttClient.connected()) {
+  //   reconnect();
+  // }
   mqttClient.loop();
 }
