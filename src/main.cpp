@@ -32,14 +32,6 @@ const char * hostIP = "192.168.8.228";
 String baseAPI_URL = "http://192.168.8.228:7912/api/v1/";
 int wsPort = 7912;
 
-// Example struct to hold parsed data
-struct SpoolEvent {
-  String type;
-  int id;
-  String name;
-  float weight;
-};
-
 TwoWire  I2C_Bus0 = TwoWire(0);
 TwoWire  I2C_Bus1 = TwoWire(1);
 
@@ -54,9 +46,10 @@ const char* mqtt_client_id = "DryboxPeripherals";
 const char* mqttUN = "gbdineen";
 const char* mqttPW = "N1mbl3Sh@rk";
 
+JsonDocument spoolsJson;
+
 
 WiFiClient wifiClient; 
-// HttpClient http = HttpClient(wifiClient, hostIP, wsPort);
 HTTPClient http;
 WebSocketsClient webSocket;
 PubSubClient mqttClient(wifiClient);
@@ -79,14 +72,6 @@ Adafruit_SSD1306 displayArray[] = {display0, display1, display2, display3};
 // Four addresses for pointing to each oled individually over I2C
 int addressArray[] = {SCREEN_ADDRESS_0, SCREEN_ADDRESS_1, SCREEN_ADDRESS_2, SCREEN_ADDRESS_3};
 
-void handleSpoolEvent(const SpoolEvent& event) { // Struct example from CGPT
-  Serial.println("🔔 Received Spool Event:");
-  Serial.printf("  Type:   %s\n", event.type.c_str());
-  Serial.printf("  ID:     %d\n", event.id);
-  Serial.printf("  Name:   %s\n", event.name.c_str());
-  Serial.printf("  Weight: %.2f g\n", event.weight);
-}
-
 void initDisplays() {
 
   for (int i=0; i<slots; i++){  
@@ -94,26 +79,20 @@ void initDisplays() {
       Serial.println(F("SSD1306 allocation failed"));
       for(;;); // Don't proceed, loop forever
     } else {
-      // Adafruit_SSD1306 buff = displayArray[i];
+
       Serial.println("Display " + String(i) + "initialized");
 
       displayArray[i].clearDisplay();
-      // The INVERSE color is used so circles alternate white/black
       displayArray[i].fillCircle(displayArray[i].width() / 2, displayArray[i].height() / 2, 10, SSD1306_WHITE);
       displayArray[i].display(); // Update screen with each newly-drawn circle
-      delay(1000);
+      delay(500);
 
-      // delay(2000);
     }
   }
 }
 
 void initDisplays_OLD(Adafruit_SSD1306 &display, String &payload, int &address) {
 
-  //  if(!display.begin(SSD1306_SWITCHCAPVCC, address)) {
-  //   Serial.println(F("SSD1306 allocation failed"));
-  //   for(;;); // Don't proceed, loop forever
-  // }
   display.clearDisplay();
   u8g2_for_adafruit_gfx.begin(display);
   u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -145,55 +124,38 @@ void getSpools() {
   Serial.println("getSpools");
 
   http.useHTTP10(true);
-  http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
-  
+
+  // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
+  http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); 
   http.GET();
-  // http.sendRequest("GET", "/spool?location=Drybox");
-  // // http.beginRequest();
-  // http.get("/spool?location=Drybox");
-  // // http.endRequest();
 
-  // int response = http.responseStatusCode();
+  JsonDocument filter;
+  filter[0]["id"] = true;
+  filter[0]["remaining_weight"] = true;
+  filter[0]["filament"]["name"] = true;
+  filter[0]["filament"]["material"] = true;
 
-  // Serial.println(response);
+  DeserializationError error =  deserializeJson(spoolsJson, http.getStream(), DeserializationOption::Filter(filter));
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.c_str());
+    return;
+  }
 
-  JsonDocument spoolsJson;
-
-  deserializeJson(spoolsJson, http.getStream());
-
-  // // Initial call so /spool returns wrapped in a JSON array so we need to go down a level to get to the data
-  JsonArray spoolsJsonRoot = spoolsJson.as<JsonArray>();
-  Serial.println(spoolsJsonRoot.size());
+  serializeJsonPretty(spoolsJson,Serial);
 
   for (int i=0; i<4; i++){
 
-    JsonObject spoolObj = spoolsJsonRoot[i];
-    JsonObject extraObj = spoolObj["extra"];
-    JsonObject filamentObj = spoolObj["filament"];
-    int spoolID = spoolObj["id"];
-    int remWeight = spoolObj["remaining_weight"];
-    String status = extraObj["active"];
-    String slot = extraObj["slot"];
-    String material = filamentObj["material"];
-    String name = filamentObj["name"];
-    
-    // if (status == "true") { // Grab just the spools that have an active status of 'true' in spoolman
+    int spoolID = spoolsJson[i]["id"];
+    int remWeight = spoolsJson[i]["remaining_weight"];
+    String material = spoolsJson[i]["filament"]["material"];
+    String name = spoolsJson[i]["filament"]["name"];
 
-
-      // String payloadPtr*;
-      String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
-      // String info = "Display: " + String(slotCount) + "\n" + String(name) + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
-      currDisplay = displayArray[i];
-      int address = addressArray[i];
-      initDisplays_OLD(currDisplay, payload, address);
-      // if (slotCount<4){
-      //   slotCount++;
-      // } else {
-      //   slotCount=0;
-      // }
-      // Serial.println(i);
-    // }
-
+    String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
+  
+    currDisplay = displayArray[i];
+    int address = addressArray[i];
+    initDisplays_OLD(currDisplay, payload, address);
   }
   http.end();
 }
@@ -214,7 +176,14 @@ void updateSpool(JsonObject obj) {
   for (int i=0; i<4; i++){
 
     JsonDocument spoolsJson;
-    deserializeJson(spoolsJson, http.getStream());
+    
+    DeserializationError error =  deserializeJson(spoolsJson, http.getStream());
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+    }
+    
     JsonObject spoolObj = spoolsJson[i];
   
     if (spoolObj["id"] == obj["id"]) {
@@ -269,19 +238,21 @@ void updateSpool(JsonObject obj) {
 
       initDisplays_OLD(currDisplay, info, address);
 
-    }
-  
+    }  
   }
-  
-
-};
+}
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // Serial.println("MQTT Callback");
 
   // JsonDocument doc;
-  // deserializeJson(doc, payload);
+  // DeserializationError error =  deserializeJson(doc, payload);
+  // if (error) {
+  //   Serial.print(F("deserializeJson() failed: "));
+  //   Serial.println(error.c_str());
+  //   return;
+  // }
 
   // if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
     
@@ -300,9 +271,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   //       displayArray[i].invertDisplay(false);
       
   //     }
-
   //   }
-
   // }
 
   // JsonObject root = doc.as<JsonObject>();
@@ -341,7 +310,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 			// evt.name = doc["data"]["name"].as<String>();
 			// evt.weight = doc["data"]["weight"] | -1.0;
 
-      Serial.println("Resource: " + String(doc["resource"]));
+      Serial.println("\nResource: " + String(doc["resource"]));
 
       if (doc["type"] == "updated") {
 
