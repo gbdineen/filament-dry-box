@@ -70,7 +70,10 @@ Adafruit_SSD1306 displayArray[] = {display0, display1, display2, display3};
 // Four addresses for pointing to each oled individually over I2C
 int addressArray[] = {SCREEN_ADDRESS_0, SCREEN_ADDRESS_1, SCREEN_ADDRESS_2, SCREEN_ADDRESS_3};
 
-void handleSpoolEvent(const SpoolEvent& event) {
+JsonDocument spoolsJson;
+JsonArray spoolsJsonRoot;
+
+void handleSpoolEvent(const SpoolEvent& event) { // Struct example from CGPT
   Serial.println("🔔 Received Spool Event:");
   Serial.printf("  Type:   %s\n", event.type.c_str());
   Serial.printf("  ID:     %d\n", event.id);
@@ -78,7 +81,7 @@ void handleSpoolEvent(const SpoolEvent& event) {
   Serial.printf("  Weight: %.2f g\n", event.weight);
 }
 
-void oledDisplay(Adafruit_SSD1306 display, String payload, int address) {
+void initDisplays(Adafruit_SSD1306 display, String payload, int address) {
 
    if(!display.begin(SSD1306_SWITCHCAPVCC, address)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -102,50 +105,51 @@ void oledDisplay(Adafruit_SSD1306 display, String payload, int address) {
   int16_t text_center_x = (display.width() - text_width) /2;
   int16_t text_center_y = disp_center_y + h;
   
-  u8g2_for_adafruit_gfx.setCursor(0, 15);     // Start at top-left corner
+  u8g2_for_adafruit_gfx.setCursor(0, 20);     // Start at top-left corner
   u8g2_for_adafruit_gfx.print(payload);
 
   display.display();
   delay(10);
 }
 
-// Get all currest spools from spoolman
+// Get all current spools from spoolman
 void getSpools() {
 
   http.useHTTP10(true);
-  http.begin(wifiClient, String(baseAPI_URL + "spool"));
+  http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
   http.GET();
 
-  JsonDocument doc;
-  deserializeJson(doc, http.getStream());
 
-  // Initial call so spool returns wrapped in a JSON array so we need to go down a level to get to the data
-  JsonArray root = doc.as<JsonArray>();
+  deserializeJson(spoolsJson, http.getStream());
 
-  for (int i=0; i<root.size(); i++){
+  // Initial call so /spool returns wrapped in a JSON array so we need to go down a level to get to the data
+  spoolsJsonRoot = spoolsJson.as<JsonArray>();
 
-    JsonObject spoolObj = root[i];
+  for (int i=0; i<spoolsJsonRoot.size(); i++){
+
+    JsonObject spoolObj = spoolsJsonRoot[i];
     JsonObject extraObj = spoolObj["extra"];
     JsonObject filamentObj = spoolObj["filament"];
+    int spoolID = spoolObj["id"];
     int remWeight = spoolObj["remaining_weight"];
     String status = extraObj["active"];
     String slot = extraObj["slot"];
     String material = filamentObj["material"];
-    const char* name = filamentObj["name"];
+    String name = filamentObj["name"];
     
-    if (status == "true") {
+    // if (status == "true") { // Grab just the spools that have an active status of 'true' in spoolman
 
-
-      String info = "Display: " + String(slotCount) + "\n" + String(name) + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g";
+      String info = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
+      // String info = "Display: " + String(slotCount) + "\n" + String(name) + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
       currDisplay = displayArray[slotCount];
       int address = addressArray[slotCount];
-      oledDisplay(currDisplay, info, address);
+      initDisplays(currDisplay, info, address);
       if (slotCount<4){
         slotCount++;
       } else {
         slotCount=0;
       }
-    }
+    // }
 
   }
   http.end();
@@ -162,30 +166,109 @@ void getSpool(const char * spoolID){
 
 };
 
-void updateSpool(const char * spoolID) {
+void updateSpool(JsonObject obj) {
+
+  for (int i=0; i<4; i++){
+
+    JsonObject spoolObj = spoolsJsonRoot[i];
+  
+    if (spoolObj["id"] == obj["id"]) {
+
+      Serial.println("Updating spool");
+
+      JsonObject filamentObj = spoolObj["filament"];
+      String material = filamentObj["material"];
+      String name = filamentObj["name"];  
+      int remWeight = obj["remaining_weight"];
+      int spoolId = spoolObj["id"];
+
+      String info = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolId;
+
+      currDisplay = displayArray[i];
+      int address = addressArray[i];
+     
+      if(! currDisplay.begin(SSD1306_SWITCHCAPVCC,address)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;); // Don't proceed, loop forever
+      }   
+
+      currDisplay.clearDisplay();
+      u8g2_for_adafruit_gfx.begin(currDisplay);
+      u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+      u8g2_for_adafruit_gfx.setFontMode(1);                 // use u8g2 transparent mode (this is default)
+      u8g2_for_adafruit_gfx.setFontDirection(0);
+      u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
+      int16_t disp_center_x = currDisplay.width()/2;
+      int16_t disp_center_y = currDisplay.height()/2;
+
+      const char *  updateMsg = "UPDATED";
+
+      int16_t text_width = u8g2_for_adafruit_gfx.getUTF8Width(updateMsg);
+
+      int16_t x1, y1;
+      uint16_t w, h;
+      currDisplay.getTextBounds(updateMsg, 0, 0, &x1, &y1, &w, &h);
+
+      int16_t text_center_x = (currDisplay.width() - text_width) /2;
+      int16_t text_center_y = disp_center_y + h;
+
+      u8g2_for_adafruit_gfx.setCursor(text_center_x,text_center_y);     // Start at top-left corner
+      u8g2_for_adafruit_gfx.print(updateMsg); 
+      currDisplay.invertDisplay(true);
+      currDisplay.display();
+
+      delay(3000);
+
+      currDisplay.clearDisplay();
+      currDisplay.invertDisplay(false);
+
+      initDisplays(currDisplay, info, address);
+
+    }
+  
+  }
+  
 
 };
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
-  Serial.println("MQTT Callback");
-  // byte* p = (byte*)malloc(length);
-
-  // memcpy(p,payload,length);
-  // mqttClient.publish("mqttStatus", p, length);
+  // Serial.println("MQTT Callback");
 
   JsonDocument doc;
   deserializeJson(doc, payload);
 
-  JsonObject root = doc.as<JsonObject>();
+  if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
+    
+    String selectedSpoolId = doc["spoolId"];
+    
+    for (int i=0; i<4; i++){
+      Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJsonRoot[i]["id"]) + "\n");
+
+      if (selectedSpoolId == String(spoolsJsonRoot[i]["id"])) {
+
+        displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
+        displayArray[i].invertDisplay(true);
+
+      } else {
+
+        displayArray[i].invertDisplay(false);
+      
+      }
+
+    }
+
+  }
+
+  // JsonObject root = doc.as<JsonObject>();
    
-  String spoolID = doc["spoolId"];
-  Serial.println("Spool ID: " + spoolID);
-  // Serial.printf("Spool ID selected: " + String(spoolID));
+  // String spoolID = doc["spoolId"];
+  // Serial.println("Spool ID: " + spoolID);
+  // Serial.println(topic);
 
 
-  display0.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS_0);
-  display0.invertDisplay(true);
+  // display0.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS_0);
+  // display0.invertDisplay(true);
 }
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -204,17 +287,32 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 			
 			JsonDocument doc;
   		deserializeJson(doc, payload);
-
 			serializeJsonPretty(doc,Serial);
 
     // Expect format: {"type":"spool.updated","data":{"id":5,"name":"PLA White","weight":812}}
-			SpoolEvent evt;
-			evt.type = doc["type"].as<String>();
-			evt.id = doc["data"]["id"] | -1;
-			evt.name = doc["data"]["name"].as<String>();
-			evt.weight = doc["data"]["weight"] | -1.0;
+			// SpoolEvent evt;
+			// evt.type = doc["type"].as<String>();
+			// evt.id = doc["data"]["id"] | -1;
+			// evt.name = doc["data"]["name"].as<String>();
+			// evt.weight = doc["data"]["weight"] | -1.0;
 
-			handleSpoolEvent(evt);
+      if (doc["type"] == "updated") {
+
+        if (doc["resource"] == "spool") {
+
+          JsonObject payload = doc["payload"];
+          int spoolID = payload["id"];
+
+          updateSpool(payload);
+
+        } else if (doc["resource"] == "setting"){
+            
+          getSpools();
+
+        }
+
+      }
+			// handleSpoolEvent(evt);
 			break;
 		}
 		case WStype_BIN:
