@@ -8,6 +8,8 @@
 #include <WebSocketsClient.h>
 #include <PubSubClient.h> // For MQTT
 #include <WiFi.h>
+#include <iostream>
+#include <string> 
 
 // #define USE_SERIAL Serial
 // #define WIFI_un "GL-SFT1200-887"
@@ -46,24 +48,28 @@ const char* mqtt_client_id = "DryboxPeripherals";
 const char* mqttUN = "gbdineen";
 const char* mqttPW = "N1mbl3Sh@rk";
 
+// JSON STUFF
 JsonDocument spoolsJson;
-
+bool useFilters = true;
 
 WiFiClient wifiClient; 
 HTTPClient http;
 WebSocketsClient webSocket;
 PubSubClient mqttClient(wifiClient);
 
-
 // DISPLAY STUFF
 int slots = 4;  // Number of spool slots, also happens to be the number of displays
+std::string screenMode = "overview";
+
+// TIMER STUFF
+unsigned long previousMillis = 0;
 
 // Init 4 oled screen objects, one for each slot in the box
 Adafruit_SSD1306 display0(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
 Adafruit_SSD1306 display1(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus0, OLED_RESET);
 Adafruit_SSD1306 display2(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus1, OLED_RESET);
 Adafruit_SSD1306 display3(SCREEN_WIDTH, SCREEN_HEIGHT, &I2C_Bus1, OLED_RESET);
-Adafruit_SSD1306 currDisplay = display0;
+// Adafruit_SSD1306 updateDisplay = display0;
 U8G2_FOR_ADAFRUIT_GFX u8g2_for_adafruit_gfx;
 
 // Array of screens for programatic doing things to each one 
@@ -83,45 +89,156 @@ void initDisplays() {
       Serial.println("Display " + String(i) + "initialized");
 
       displayArray[i].clearDisplay();
-      displayArray[i].fillCircle(displayArray[i].width() / 2, displayArray[i].height() / 2, 10, SSD1306_WHITE);
-      displayArray[i].display(); // Update screen with each newly-drawn circle
-      delay(500);
+      
+      for (int y=0; y<20; y+=2){
 
+        displayArray[i].fillCircle(displayArray[i].width() / 2, displayArray[i].height() / 2, y, SSD1306_WHITE);
+        displayArray[i].display(); // Update screen with each newly-drawn circle
+        delay(1);
+      }
     }
   }
+  delay(500);
 }
 
-void initDisplays_OLD(Adafruit_SSD1306 &display, String &payload, int &address) {
+void overviewDisplay(int displayId, int spoolId, int remWeight, const char * material, const char * name) {
 
-  display.clearDisplay();
-  u8g2_for_adafruit_gfx.begin(display);
-  u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  screenMode = "overview";
+
+  displayArray[displayId].clearDisplay();
+  u8g2_for_adafruit_gfx.begin(displayArray[displayId]);
+  u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr); // 10px high  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
   u8g2_for_adafruit_gfx.setFontMode(1);                 // use u8g2 transparent mode (this is default)
   u8g2_for_adafruit_gfx.setFontDirection(0);
   u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
-  int16_t disp_center_x = display.width()/2;
-  int16_t disp_center_y = display.height()/2;
-  int16_t text_width = u8g2_for_adafruit_gfx.getUTF8Width(payload.c_str());
-  
-  // Pointer receives for getTextBounds -- not sure I'm going to use tjis. getUTF8Width seems more accurate
-  int16_t x1, y1;
-  uint16_t w, h;
-  display.getTextBounds(payload, 0, 0, &x1, &y1, &w, &h);
-  
-  int16_t text_center_x = (display.width() - text_width) /2;
-  int16_t text_center_y = disp_center_y + h;
-  
-  u8g2_for_adafruit_gfx.setCursor(0, 20);     // Start at top-left corner
-  u8g2_for_adafruit_gfx.print(payload);
+  int16_t disp_center_x = displayArray[displayId].width()/2;
+  int16_t disp_center_y = displayArray[displayId].height()/2;
 
-  display.display();
+  int8_t font_height = 10;
+  int8_t padding_screen_top = 10;
+  int8_t padding_screen_left = 10;
+  int8_t padding_font_bottom = 7;
+  int8_t character_height = font_height + padding_font_bottom;
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left, padding_screen_top);
+  u8g2_for_adafruit_gfx.print(name);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left, padding_screen_top + character_height);
+  u8g2_for_adafruit_gfx.print(material);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left,  padding_screen_top + (character_height*2));
+  u8g2_for_adafruit_gfx.print(F("Rem wt: ")); u8g2_for_adafruit_gfx.print(remWeight);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left,  padding_screen_top + (character_height*3));
+  u8g2_for_adafruit_gfx.print(F("Spool Id: ")); u8g2_for_adafruit_gfx.print(spoolId);
+
+  displayArray[displayId].display();
   delay(10);
 }
 
-// Get all current spools from spoolman
-void getSpools() {
+void spoolWeightDisplay() {
 
-  Serial.println("getSpools");
+  screenMode = "spool_weight";
+
+  for (int i=0; i<slots; i++){  
+
+    displayArray[i].clearDisplay();
+
+    int disp_w =  displayArray[i].width();
+    int disp_h =  displayArray[i].height();
+    int disp_padding_top = 20;
+    int disp_center_x = disp_w/2;
+    int disp_center_y = disp_h/2;
+    int meter_w = displayArray[i].width() - 20;
+    int meter_h = 20;
+    int meter_x = (disp_w - meter_w) /2;
+    // = (disp_h - meter_h) /2;
+    int meter_y = disp_padding_top;
+    int text_center_x;
+    int text_y = (disp_padding_top + meter_h) + 20;
+    int text_w;
+    int text_h = 10;
+
+    u8g2_for_adafruit_gfx.begin(displayArray[i]);
+    u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr); // 10px high  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+    u8g2_for_adafruit_gfx.setFontMode(0);                 // use u8g2 transparent mode (this is default)
+    u8g2_for_adafruit_gfx.setFontDirection(0);
+    u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
+   
+    displayArray[i].clearDisplay();
+    displayArray[i].drawRect(meter_x, disp_padding_top, meter_w, meter_h, SSD1306_WHITE);
+
+    int remWeightInt = spoolsJson[i]["remaining_weight"];
+    std::string remWeightStr = std::to_string(remWeightInt) + "g / 1000g";
+    const char* remWeightPtr = remWeightStr.c_str();
+    uint8_t weight_meter = map(remWeightInt, 0, 1000, 0, meter_w);
+    uint16_t weight_perc = map(remWeightInt, 0, 1000, 0, 100);
+    std::string weight_perc_str = std::to_string(weight_perc) + "%";
+    const char* weight_perc_ptr = weight_perc_str.c_str();
+    int weight_perc_y = (meter_y + meter_h) - 5;
+
+    displayArray[i].fillRect(meter_x, disp_padding_top, weight_meter, meter_h, SSD1306_WHITE);
+
+    // text_w = u8g2_for_adafruit_gfx.getUTF8Width("Weight Remaining");
+    // text_center_x = (displayArray[i].width() - text_w) /2;
+    // u8g2_for_adafruit_gfx.setCursor(text_center_x, (disp_padding_top+meter_h)+15);
+    // u8g2_for_adafruit_gfx.print("Weight Remaining");
+
+    text_w = u8g2_for_adafruit_gfx.getUTF8Width(remWeightPtr);
+    text_center_x = (displayArray[i].width() - text_w) /2;
+    u8g2_for_adafruit_gfx.setCursor(text_center_x, text_y);
+    u8g2_for_adafruit_gfx.print(remWeightPtr);
+
+    text_w = u8g2_for_adafruit_gfx.getUTF8Width(weight_perc_ptr);
+    text_center_x = (displayArray[i].width() - text_w) /2;
+    u8g2_for_adafruit_gfx.setCursor(text_center_x, weight_perc_y);
+    u8g2_for_adafruit_gfx.setBackgroundColor(SSD1306_BLACK);
+    u8g2_for_adafruit_gfx.print(weight_perc_ptr);
+
+    displayArray[i].display();
+
+  }
+
+  delay(3000);
+
+}
+
+void updateDisplay(int displayId, int spoolId, int remWeight, const char * material, const char * name) {
+
+  screenMode = "overview";
+
+  displayArray[displayId].clearDisplay();
+  u8g2_for_adafruit_gfx.begin(displayArray[displayId]);
+  u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr); // 10px high  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  u8g2_for_adafruit_gfx.setFontMode(1);                 // use u8g2 transparent mode (this is default)
+  u8g2_for_adafruit_gfx.setFontDirection(0);
+  u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
+  int16_t disp_center_x = displayArray[displayId].width()/2;
+  int16_t disp_center_y = displayArray[displayId].height()/2;
+
+  int8_t font_height = 10;
+  int8_t padding_screen_top = 10;
+  int8_t padding_screen_left = 10;
+  int8_t padding_font_bottom = 7;
+  int8_t character_height = font_height + padding_font_bottom;
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left, padding_screen_top);
+  u8g2_for_adafruit_gfx.print(name);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left, padding_screen_top + character_height);
+  u8g2_for_adafruit_gfx.print(material);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left,  padding_screen_top + (character_height*2));
+  u8g2_for_adafruit_gfx.print(F("Rem wt: ")); u8g2_for_adafruit_gfx.print(remWeight);
+
+  u8g2_for_adafruit_gfx.setCursor(padding_screen_left,  padding_screen_top + (character_height*3));
+  u8g2_for_adafruit_gfx.print(F("Spool Id: ")); u8g2_for_adafruit_gfx.print(spoolId);
+
+  displayArray[displayId].display();
+  delay(10);
+}
+
+void updateSpoolsJson (){
 
   http.useHTTP10(true);
 
@@ -129,13 +246,87 @@ void getSpools() {
   http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); 
   http.GET();
 
-  JsonDocument filter;
-  filter[0]["id"] = true;
-  filter[0]["remaining_weight"] = true;
-  filter[0]["filament"]["name"] = true;
-  filter[0]["filament"]["material"] = true;
+  DeserializationError error;
 
-  DeserializationError error =  deserializeJson(spoolsJson, http.getStream(), DeserializationOption::Filter(filter));
+  if (!useFilters) {
+
+    error =  deserializeJson(spoolsJson, http.getStream());
+
+  } else {
+
+    JsonDocument filter;
+    filter[0]["id"] = true;
+    filter[0]["remaining_weight"] = true;
+    filter[0]["filament"]["name"] = true;
+    filter[0]["filament"]["material"] = true;
+
+    error =  deserializeJson(spoolsJson, http.getStream(), DeserializationOption::Filter(filter));
+  }
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.c_str());
+    return;
+  }
+
+  serializeJsonPretty(spoolsJson,Serial);
+
+  http.end();
+  
+  delay(100);
+
+}
+
+void getSpoolLocations() {
+
+  http.useHTTP10(true);
+
+  // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
+  http.begin(wifiClient, String(baseAPI_URL + "setting/locations_spoolorders")); 
+  http.GET();
+
+  JsonDocument doc;
+
+  DeserializationError error =  deserializeJson(doc, http.getStream());
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+    }
+
+  serializeJsonPretty(doc,Serial);
+
+}
+
+// Get all current spools from spoolman
+void getSpools() {
+
+  // Serial.println("getSpools");
+
+  // screenMode = "overview";
+
+  http.useHTTP10(true);
+
+  // Query spoolman to get only spools that are in the 'Drybox' location. Should be just4 spools.
+  http.begin(wifiClient, String(baseAPI_URL + "spool?location=Drybox")); 
+  http.GET();
+
+  DeserializationError error;
+
+
+  if (!useFilters) {
+
+    error =  deserializeJson(spoolsJson, http.getStream());
+
+  } else {
+
+    JsonDocument filter;
+    filter[0]["id"] = true;
+    filter[0]["remaining_weight"] = true;
+    filter[0]["filament"]["name"] = true;
+    filter[0]["filament"]["material"] = true;
+
+    error =  deserializeJson(spoolsJson, http.getStream(), DeserializationOption::Filter(filter));
+  }
   if (error) {
     Serial.print(F("deserializeJson() failed: "));
     Serial.println(error.c_str());
@@ -146,74 +337,71 @@ void getSpools() {
 
   for (int i=0; i<4; i++){
 
-    int spoolID = spoolsJson[i]["id"];
+    int spoolId = spoolsJson[i]["id"];
     int remWeight = spoolsJson[i]["remaining_weight"];
-    String material = spoolsJson[i]["filament"]["material"];
-    String name = spoolsJson[i]["filament"]["name"];
+    const char * material = spoolsJson[i]["filament"]["material"];
+    const char * name = spoolsJson[i]["filament"]["name"];
 
-    String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
+    // String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
   
-    currDisplay = displayArray[i];
-    int address = addressArray[i];
-    initDisplays_OLD(currDisplay, payload, address);
+    // Adafruit_SSD1306 currDisplay = displayArray[i];
+    // int address = addressArray[i];
+    overviewDisplay(i, spoolId, remWeight, material, name);
+    
   }
   http.end();
+
+  delay(3000);
+  getSpoolLocations();
+  spoolWeightDisplay();
 }
 
 
 void selectSpool(const char * spoolID){
 
-  Serial.println("Spool selected");
+  // Serial.println("Spool selected");
 
 };
 
-void getSpool(const char * spoolID){
+void getSpool(){
 
 };
 
-void updateSpool(JsonObject obj) {
+void updateSpool(int &spoolId, int &remWeight) {
 
   for (int i=0; i<4; i++){
 
-    JsonDocument spoolsJson;
-    
-    DeserializationError error =  deserializeJson(spoolsJson, http.getStream());
-    if (error) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.c_str());
-      return;
-    }
-    
-    JsonObject spoolObj = spoolsJson[i];
+    // JsonObject spoolObj = spoolsJson[i];
   
-    if (spoolObj["id"] == obj["id"]) {
+    if (spoolsJson[i]["id"] == spoolId) {
 
-      Serial.println("Updating spool");
+      spoolsJson[i]["remaining_weight"] = remWeight;
+      serializeJsonPretty(spoolsJson, Serial);
 
-      JsonObject filamentObj = spoolObj["filament"];
-      String material = filamentObj["material"];
-      String name = filamentObj["name"];  
-      int remWeight = obj["remaining_weight"];
-      int spoolId = spoolObj["id"];
+      updateSpoolsJson();
 
-      String info = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolId;
+      // int existingSpoolId = spoolsJson[i]["id"];
 
-      currDisplay = displayArray[i];
-      int address = addressArray[i];
-     
-      if(! currDisplay.begin(SSD1306_SWITCHCAPVCC,address)) {
-        Serial.println(F("SSD1306 allocation failed"));
-        for(;;); // Don't proceed, loop forever
-      }   
+      // Serial.println("Updating spool" + existingSpoolId);
 
-      currDisplay.clearDisplay();
-      u8g2_for_adafruit_gfx.begin(currDisplay);
+      //  Serial.println("Identified spool");
+
+      // int spoolId = spoolsJson[i]["id"];
+      // int remWeight = spoolsJson[i]["remaining_weight"];
+      const char * material = spoolsJson[i]["filament"]["material"];
+      const char * name = spoolsJson[i]["filament"]["name"];
+
+
+      // updateDisplay = displayArray[i];
+
+      displayArray[i].clearDisplay();
+      u8g2_for_adafruit_gfx.begin(displayArray[i]);
       u8g2_for_adafruit_gfx.setFont(u8g2_font_crox2hb_tr);  // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
-      u8g2_for_adafruit_gfx.setFontMode(1);                 // use u8g2 transparent mode (this is default)
+      u8g2_for_adafruit_gfx.setFontMode(0);                 // use u8g2 transparent mode (this is default)
       u8g2_for_adafruit_gfx.setFontDirection(0);
-      u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
-      int16_t disp_center_x = currDisplay.width()/2;
-      int16_t disp_center_y = currDisplay.height()/2;
+      // u8g2_for_adafruit_gfx.setForegroundColor(WHITE);
+      int16_t disp_center_x = displayArray[i].width()/2;
+      int16_t disp_center_y = displayArray[i].height()/2;
 
       const char *  updateMsg = "UPDATED";
 
@@ -221,22 +409,34 @@ void updateSpool(JsonObject obj) {
 
       int16_t x1, y1;
       uint16_t w, h;
-      currDisplay.getTextBounds(updateMsg, 0, 0, &x1, &y1, &w, &h);
+      displayArray[i].getTextBounds(updateMsg, 0, 0, &x1, &y1, &w, &h);
 
-      int16_t text_center_x = (currDisplay.width() - text_width) /2;
+      int16_t text_center_x = (displayArray[i].width() - text_width) /2;
       int16_t text_center_y = disp_center_y + h;
 
       u8g2_for_adafruit_gfx.setCursor(text_center_x,text_center_y);     // Start at top-left corner
+      displayArray[i].invertDisplay(true);
       u8g2_for_adafruit_gfx.print(updateMsg); 
-      currDisplay.invertDisplay(true);
-      currDisplay.display();
+
+      // u8g2_for_adafruit_gfx.print(updateMsg);
+      displayArray[i].display();
 
       delay(3000);
 
-      currDisplay.clearDisplay();
-      currDisplay.invertDisplay(false);
+      // displayArray[i].clearDisplay();
+      displayArray[i].invertDisplay(false);
 
-      initDisplays_OLD(currDisplay, info, address);
+      // screenMode = "overview";
+
+      if (screenMode == "spool_weight") {
+
+        spoolWeightDisplay();
+
+      } else if (screenMode == "overview") {
+        
+        overviewDisplay(i, spoolId, remWeight, material, name);
+
+      }
 
     }  
   }
@@ -246,43 +446,43 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // Serial.println("MQTT Callback");
 
-  // JsonDocument doc;
-  // DeserializationError error =  deserializeJson(doc, payload);
-  // if (error) {
-  //   Serial.print(F("deserializeJson() failed: "));
-  //   Serial.println(error.c_str());
-  //   return;
-  // }
+  JsonDocument doc;
+  DeserializationError error =  deserializeJson(doc, payload);
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.c_str());
+    return;
+  }
 
-  // if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
+  if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
     
-  //   String selectedSpoolId = doc["spoolId"];
+    String selectedSpoolId = doc["spoolId"];
     
-  //   for (int i=0; i<4; i++){
-  //     Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJsonRoot[i]["id"]) + "\n");
+    for (int i=0; i<4; i++){
+      Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJson[i]["id"]) + "\n");
 
-  //     if (selectedSpoolId == String(spoolsJsonRoot[i]["id"])) {
+      if (selectedSpoolId == String(spoolsJson[i]["id"])) {
 
-  //       displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
-  //       displayArray[i].invertDisplay(true);
+        displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
+        displayArray[i].invertDisplay(true);
 
-  //     } else {
+      } else {
 
-  //       displayArray[i].invertDisplay(false);
+        displayArray[i].invertDisplay(false);
       
-  //     }
-  //   }
-  // }
+      }
+    }
+  }
 
-  // JsonObject root = doc.as<JsonObject>();
+  JsonObject root = doc.as<JsonObject>();
    
-  // String spoolID = doc["spoolId"];
-  // Serial.println("Spool ID: " + spoolID);
-  // Serial.println(topic);
+  String spoolID = doc["spoolId"];
+  Serial.println("Spool ID: " + spoolID);
+  Serial.println(topic);
 
 
-  // display0.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS_0);
-  // display0.invertDisplay(true);
+  display0.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS_0);
+  display0.invertDisplay(true);
 }
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -298,17 +498,41 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 			webSocket.sendTXT("Connected");
 			break;
 		case WStype_TEXT: {
-			
-			JsonDocument doc;
-  		deserializeJson(doc, payload);
-			serializeJsonPretty(doc,Serial);
 
-    // Expect format: {"type":"spool.updated","data":{"id":5,"name":"PLA White","weight":812}}
-			// SpoolEvent evt;
-			// evt.type = doc["type"].as<String>();
-			// evt.id = doc["data"]["id"] | -1;
-			// evt.name = doc["data"]["name"].as<String>();
-			// evt.weight = doc["data"]["weight"] | -1.0;
+      DeserializationError error;
+      JsonDocument doc;
+
+      // useFilters = false;
+
+      if (!useFilters) {
+
+        error =  deserializeJson(doc, payload);
+
+      } else {
+
+        JsonDocument filter;
+
+        // FOR UPDATES
+        filter["type"] = true;
+        filter["resource"] = true;
+
+        // 
+        filter["payload"]["id"] = true;
+        filter["payload"]["remaining_weight"] = true;
+        filter["payload"]["filament"]["name"] = true;
+        filter["payload"]["filament"]["material"] = true;
+
+        error =  deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+      }
+      if (error) {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.c_str());
+        return;
+      }
+
+			serializeJsonPretty(doc,Serial);
+      int spoolId = doc["payload"]["id"];
+      int remWeight = doc["payload"]["remaining_weight"];
 
       Serial.println("\nResource: " + String(doc["resource"]));
 
@@ -316,10 +540,8 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
         if (doc["resource"] == "spool") {
 
-          JsonObject payload = doc["payload"];
-          int spoolID = payload["id"];
+          updateSpool(spoolId, remWeight);
 
-          updateSpool(payload);
 
         } else if (doc["resource"] == "setting"){
             
