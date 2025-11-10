@@ -47,6 +47,7 @@ const int mqtt_port = 1883; // Or 8883 for SSL/TLS
 const char* mqtt_client_id = "DryboxPeripherals";
 const char* mqttUN = "gbdineen";
 const char* mqttPW = "N1mbl3Sh@rk";
+int lastReconnectAttempt = 0;
 
 // JSON STUFF
 JsonDocument spoolsJson;
@@ -196,10 +197,11 @@ void spoolWeightDisplay() {
     u8g2_for_adafruit_gfx.print(weight_perc_ptr);
 
     displayArray[i].display();
+    delay(1);
 
   }
 
-  delay(3000);
+  // delay(3000);
 
 }
 
@@ -342,18 +344,18 @@ void getSpools() {
     const char * material = spoolsJson[i]["filament"]["material"];
     const char * name = spoolsJson[i]["filament"]["name"];
 
-    // String payload = name + "\n" + material + "\n" + "Rem Wt. " + remWeight + "g\n" + "Spool ID: " + spoolID;
-  
-    // Adafruit_SSD1306 currDisplay = displayArray[i];
-    // int address = addressArray[i];
     overviewDisplay(i, spoolId, remWeight, material, name);
     
   }
   http.end();
 
+
   delay(3000);
-  getSpoolLocations();
+  // getSpoolLocations();
+  mqttClient.publish("mqttStatus","Spools Retrieved");
   spoolWeightDisplay();
+
+
 }
 
 
@@ -367,32 +369,19 @@ void getSpool(){
 
 };
 
-void updateSpool(int &spoolId, int &remWeight) {
+void updateSpool(int spoolId, int remWeight) {
 
   for (int i=0; i<4; i++){
-
-    // JsonObject spoolObj = spoolsJson[i];
   
     if (spoolsJson[i]["id"] == spoolId) {
 
       spoolsJson[i]["remaining_weight"] = remWeight;
       serializeJsonPretty(spoolsJson, Serial);
 
-      updateSpoolsJson();
+      // updateSpoolsJson();
 
-      // int existingSpoolId = spoolsJson[i]["id"];
-
-      // Serial.println("Updating spool" + existingSpoolId);
-
-      //  Serial.println("Identified spool");
-
-      // int spoolId = spoolsJson[i]["id"];
-      // int remWeight = spoolsJson[i]["remaining_weight"];
       const char * material = spoolsJson[i]["filament"]["material"];
       const char * name = spoolsJson[i]["filament"]["name"];
-
-
-      // updateDisplay = displayArray[i];
 
       displayArray[i].clearDisplay();
       u8g2_for_adafruit_gfx.begin(displayArray[i]);
@@ -444,26 +433,37 @@ void updateSpool(int &spoolId, int &remWeight) {
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
-  // Serial.println("MQTT Callback");
+  Serial.println("MQTT Callback");
 
+  JsonDocument filter;
   JsonDocument doc;
-  DeserializationError error =  deserializeJson(doc, payload);
-  if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.c_str());
-    return;
-  }
+  
 
   if (String(topic) == "octoPrint/event/plugin_Spoolman_spool_selected") {
+
+    filter["spoolId"] = true;
     
-    String selectedSpoolId = doc["spoolId"];
+    DeserializationError error =  deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+    }
+    serializeJsonPretty(doc,Serial);
+
+    Serial.println("===");
+
+    // serializeJsonPretty(spoolsJson[1]["id"],Serial);
+
+    int displayId;
     
     for (int i=0; i<4; i++){
-      Serial.print("selectedSpoolId: " + selectedSpoolId + "  Slot Spool ID: " + String(spoolsJson[i]["id"]) + "\n");
 
-      if (selectedSpoolId == String(spoolsJson[i]["id"])) {
+      // Serial.println("Spool Id: " + String(spoolsJson[i]["id"]) + "return Spool Id: " + String(doc["spoolId"]));
 
-        displayArray[i].begin(SSD1306_SWITCHCAPVCC, addressArray[i]);
+      if (doc["spoolId"].as<int>() == spoolsJson[i]["id"].as<int>()) {
+
+        // displayId=i;
         displayArray[i].invertDisplay(true);
 
       } else {
@@ -472,17 +472,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       
       }
     }
+  
   }
-
-  JsonObject root = doc.as<JsonObject>();
-   
-  String spoolID = doc["spoolId"];
-  Serial.println("Spool ID: " + spoolID);
-  Serial.println(topic);
-
-
-  display0.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS_0);
-  display0.invertDisplay(true);
+  
 }
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -512,11 +504,9 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
         JsonDocument filter;
 
-        // FOR UPDATES
+        // FOR UPDATES - not all apply for each instance. Depends on resource type (spool, setting, etc))
         filter["type"] = true;
         filter["resource"] = true;
-
-        // 
         filter["payload"]["id"] = true;
         filter["payload"]["remaining_weight"] = true;
         filter["payload"]["filament"]["name"] = true;
@@ -534,14 +524,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       int spoolId = doc["payload"]["id"];
       int remWeight = doc["payload"]["remaining_weight"];
 
-      Serial.println("\nResource: " + String(doc["resource"]));
+      // Serial.println("\nResource: " + String(doc["resource"]));
 
       if (doc["type"] == "updated") {
 
         if (doc["resource"] == "spool") {
 
           updateSpool(spoolId, remWeight);
-
 
         } else if (doc["resource"] == "setting"){
             
@@ -550,15 +539,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         }
 
       }
-			// handleSpoolEvent(evt);
 			break;
 		}
 		case WStype_BIN:
-			Serial.printf("[WSc] get binary length: %u\n", length);
-			// hexdump(payload, length); // probably wont be needing this 
+			// Serial.printf("[WSc] get binary length: %u\n", length);  
 
 			// send data to server
-			// webSocket.sendBIN(payload, length);
+			webSocket.sendBIN(payload, length);
 			break;
 		case WStype_ERROR:			
 		case WStype_FRAGMENT_TEXT_START:
@@ -577,6 +564,9 @@ void setup() {
   I2C_Bus0.begin(I2C0_SDA, I2C0_SCL, 100000);
   I2C_Bus1.begin(I2C1_SDA, I2C1_SCL, 100000); 
 
+  mqttClient.setServer(mqtt_broker, mqtt_port);
+  mqttClient.setCallback(mqttCallback);
+
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -584,69 +574,90 @@ void setup() {
   }
   Serial.println("Connected to WiFi");
 
-  mqttClient.setServer(mqtt_broker, mqtt_port);
-
-  while (!mqttClient.connected()) {
-    delay(1000);
-    Serial.print("Attempting MQTT connection...");
-    // mqttClient to connect
-    if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
-      Serial.println("connected");
-
-      // Set the callback function for incoming mqtt messages
-      mqttClient.setCallback(mqttCallback);
-
-      // Once connected, publish an announcement...
-      mqttClient.publish("mqttStatus","MQTT Connectee");
-      // ... and resubscribe
-      mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
+  delay(1500);
+  lastReconnectAttempt = 0;
 
   // Start up web socket... should be quick once wifi is started
 	webSocket.begin(hostIP, wsPort, "/api/v1/");
 	webSocket.onEvent(webSocketEvent);
 	webSocket.setReconnectInterval(5000);
+
+ 
+
+  // while (!mqttClient.connected()) {
+  //   delay(1000);
+  //   Serial.print("Attempting MQTT connection...");
+  //   // mqttClient to connect
+  //   if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+  //     Serial.println("connected");
+
+  //   // Once connected, publish an announcement...
+  //     mqttClient.publish("mqttStatus","MQTT Connected");
+  //     // ... and resubscribe
+  //     mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+  //   } else {
+  //     Serial.print("failed, rc=");
+  //     Serial.print(mqttClient.state());
+  //     Serial.println(" try again in 5 seconds");
+  //     // Wait 5 seconds before retrying
+  //     delay(5000);
+  //   }
+  // }
   
   // Initialize and begin displays
   initDisplays();
-  // delay(500); // Pause for a moment
-
+ 
+  // Get initial spool data from spoolman
   getSpools();
   
 }
 
-void reconnect() {
-  // Loop until we're reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // mqttClient to connect
-    if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      mqttClient.publish("mqttStatus","MQTT Connectee");
-      // ... and resubscribe
-      mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+// void reconnect() {
+//   // Loop until we're reconnected
+//   while (!mqttClient.connected()) {
+//     Serial.print("Attempting MQTT connection...");
+//     // mqttClient to connect
+//     if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+//       Serial.println("connected");
+//       // Once connected, publish an announcement...
+//       mqttClient.publish("mqttStatus","MQTT Connectee");
+//       // ... and resubscribe
+//       mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
+//     } else {
+//       Serial.print("failed, rc=");
+//       Serial.print(mqttClient.state());
+//       Serial.println(" try again in 5 seconds");
+//       // Wait 5 seconds before retrying
+//       delay(5000);
+//     }
+//   }
+// }
+
+
+boolean reconnect() {
+  if (mqttClient.connect(mqtt_client_id, mqttUN, mqttPW)) {
+    Serial.println("MQTT connected");
+    // Once connected, publish an announcement...
+    mqttClient.publish("mqttStatus","MQTT Connected");
+    // ... and resubscribe
+    mqttClient.subscribe("octoPrint/event/plugin_Spoolman_spool_selected");
   }
+  return mqttClient.connected();
 }
 
 void loop() {
+  if (!mqttClient.connected()) {
+    long now = millis();
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnect()) {
+        lastReconnectAttempt = 0;
+      }
+    }
+  } else {
+    // Client connected
+    mqttClient.loop();
+  }
   webSocket.loop();
-  //  if (!mqttClient.connected()) {
-  //   reconnect();
-  // }
-  mqttClient.loop();
 }
