@@ -1,0 +1,37 @@
+.pio/build/tft_prep/libba4/OpenFontRender/cache/ftcglyph.c.o: \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcglyph.c \
+ .pio/libdeps/tft_prep/OpenFontRender/src/ft2build.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/config/ftheader.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/internal.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftobjs.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftrender.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftmodapi.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/freetype.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/config/ftconfig.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/config/ftoption.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/config/ftstdlib.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/newlib/platform_include/stdio.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/fttypes.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftsystem.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftimage.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/fterrors.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftmoderr.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/fterrdef.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftglyph.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftsizes.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftlcdfil.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftmemory.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftgloadr.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftdriver.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/autohint.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftserv.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/internal/ftpic.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/freetype/ftcache.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcglyph.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcmanag.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcmru.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftccache.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftccback.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcimage.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcsbits.h \
+ .pio/libdeps/tft_prep/OpenFontRender/src/cache/ftcerror.h

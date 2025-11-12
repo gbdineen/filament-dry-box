@@ -1,0 +1,19 @@
+.pio/build/tft_prep/FrameworkArduino/MD5Builder.cpp.o: \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.cpp \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/HEXBuilder.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/WString.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/pgmspace.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/Stream.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/newlib/platform_include/stdio.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/WString.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/Printable.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_system/include/esp_system.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_err.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_compiler.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_attr.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_bit_defs.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_idf_version.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_rom/include/esp_rom_md5.h \
+ /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/HashBuilder.h
