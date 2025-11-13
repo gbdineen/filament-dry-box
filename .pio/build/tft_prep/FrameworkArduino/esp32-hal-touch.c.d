@@ -1,4 +1,0 @@
-.pio/build/tft_prep/FrameworkArduino/esp32-hal-touch.c.o: \
- /Users/guydineen/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-touch.c \
- /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/soc/esp32s3/include/soc/soc_caps.h \
- /Users/guydineen/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_idf_version.h

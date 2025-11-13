@@ -17,6 +17,7 @@
 #define _TFT_eSPIH_
 
 #define TFT_ESPI_VERSION "2.5.43"
+#define DISABLE_ALL_LIBRARY_WARNINGS
 
 // Bit level feature flags
 // Bit 0 set: viewport capability
